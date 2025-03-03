@@ -1,0 +1,3 @@
+/home/zhf/Projects/srv6_kernel/build/CMakeFiles/srv6.dir
+/home/zhf/Projects/srv6_kernel/build/CMakeFiles/edit_cache.dir
+/home/zhf/Projects/srv6_kernel/build/CMakeFiles/rebuild_cache.dir
