@@ -75,7 +75,7 @@ struct RoutingCalcRes *construct_rcr_with_user_space_info(struct PathValidationS
         rcr = construct_rcr_with_user_space_info_under_abrt(user_space_info, pvs->abrt, source,
                                                             (int) (pvs->bloom_filter->bf_effective_bytes));
     } else if (HASH_BASED_ROUTING_TABLE_TYPE == pvs->routing_table_type) {
-        rcr = construct_rcr_with_dest_info_under_hbrt(user_space_info, pvs->hbrt, source,
+        rcr = construct_rcr_with_dest_info_under_hbrt(pvs, user_space_info, pvs->hbrt, source,
                                                       (int) (pvs->bloom_filter->bf_effective_bytes));
     } else {
         LOG_WITH_PREFIX("unsupported routing table type");
@@ -135,7 +135,8 @@ struct RoutingCalcRes *construct_rcr_with_user_space_info_under_abrt(struct User
  * @param number_of_interfaces 接口的数量
  * @return
  */
-struct RoutingCalcRes *construct_rcr_with_dest_info_under_hbrt(struct UserSpaceInfo *user_space_info,
+struct RoutingCalcRes *construct_rcr_with_dest_info_under_hbrt(struct PathValidationStructure *pvs,
+                                                               struct UserSpaceInfo *user_space_info,
                                                                struct HashBasedRoutingTable *hbrt,
                                                                int source,
                                                                int bitset_length) {
@@ -154,7 +155,19 @@ struct RoutingCalcRes *construct_rcr_with_dest_info_under_hbrt(struct UserSpaceI
         struct RoutingTableEntry *source_to_primary = find_sre_in_hbrt(hbrt, source, primaryNodeId);
         // 更新出接口和 bitset
         rcr->ite = source_to_primary->output_interface;
-        memory_or(rcr->bitset, source_to_primary->bitset, (int) (bitset_length));
+        // 判断是否等于 -1, 如果等于 -1 的话就代表全部插入
+        if(-1 == pvs->lir_single_time_encoding_count){
+            // 更新 bitset
+            memory_or(rcr->bitset, source_to_primary->bitset, (int) (bitset_length));
+        } else {
+            // 插入指定数量的链路标识来进行更新
+            unsigned char* old_bit_set = pvs->bloom_filter->bitset;
+            pvs->bloom_filter->bitset = rcr->bitset;
+            for(index = 0; index < pvs->lir_single_time_encoding_count; index++){
+                push_element_into_bloom_filter(pvs->bloom_filter, &(source_to_primary->link_identifiers[index]), sizeof(source_to_primary->link_identifiers[index]));
+            }
+            pvs->bloom_filter->bitset = old_bit_set;
+        }
         // 接着找到主节点到其他节点的路由
         for (index = 1; index < user_space_info->number_of_destinations; index++) {
             int otherNodeId = user_space_info->destinations[index];

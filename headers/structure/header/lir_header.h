@@ -29,7 +29,8 @@ struct LiRHeader {
     __u16 hdr_len;            // 头部总长度 字段9
     __u16 tot_len;            // 总的长度 字段10
     __u16 bf_len;             // 布隆过滤器长度 字段11
-    __u16 dest_len;           // 目的节点个数 字段12
+    __u16 current_hop;        // 当前跳数 字段12
+    __u16 dest_len;           // 目的节点个数 字段13
     unsigned char data[0];  // 额外的部分 (这里是指的 bf 的 bitarray)
 };
 

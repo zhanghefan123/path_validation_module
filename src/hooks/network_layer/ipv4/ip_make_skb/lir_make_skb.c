@@ -139,7 +139,8 @@ struct sk_buff *self_defined__lir_make_skb(struct sock *sk,
     lir_header->hdr_len = get_lir_header_size(rcr, pvs); // 设置数据包总长度 (字段9)
     lir_header->tot_len = htons(skb->len); // tot_len 字段 10 (等待后面进行赋值)
     lir_header->bf_len = (int) (pvs->bloom_filter->bf_effective_bytes); // bf 有效字节数 (字段11)
-    lir_header->dest_len = (int) (rcr->user_space_info->number_of_destinations); // 目的的长度 (字段12)
+    lir_header->current_hop = 0; // 当前跳数 (字段12)
+    lir_header->dest_len = (int) (rcr->user_space_info->number_of_destinations); // 目的的长度 (字段13)
     // ---------------------------------------------------------------------------------------
 
     // copy destinations

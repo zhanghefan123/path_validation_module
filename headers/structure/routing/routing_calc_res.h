@@ -17,7 +17,7 @@ struct RoutingCalcRes {
     struct InterfaceTableEntry *ite; // 出接口
     struct UserSpaceInfo *user_space_info; // 目的信息
     int number_of_routes; // 路由条目数量
-    struct RoutingTableEntry** rtes; // 当为 ICING, OPT, SELIR 的时候返回的结果
+    struct RoutingTableEntry **rtes; // 当为 ICING, OPT, SELIR 的时候返回的结果
 };
 
 // 2. 初始化计算结果
@@ -27,17 +27,20 @@ struct RoutingCalcRes *init_rcr(int source, struct UserSpaceInfo *user_space_inf
 void free_rcr(struct RoutingCalcRes *route_calculation_result);
 
 // 4. 根据 dest_and_proto_info 创建
-struct RoutingCalcRes *construct_rcr_with_user_space_info(struct PathValidationStructure *pvs, struct UserSpaceInfo *user_space_info, int source);
+struct RoutingCalcRes *
+construct_rcr_with_user_space_info(struct PathValidationStructure *pvs, struct UserSpaceInfo *user_space_info,
+                                   int source);
 
 // 5. 基于 abrt 创建
 struct RoutingCalcRes *construct_rcr_with_user_space_info_under_abrt(struct UserSpaceInfo *user_space_info,
-                                                                     struct ArrayBasedRoutingTable* abrt,
+                                                                     struct ArrayBasedRoutingTable *abrt,
                                                                      int source,
                                                                      int bitset_length);
 
 // 6. 基于 hbrt 创建
-struct RoutingCalcRes *construct_rcr_with_dest_info_under_hbrt(struct UserSpaceInfo *user_space_info,
-                                                               struct HashBasedRoutingTable* hbrt,
+struct RoutingCalcRes *construct_rcr_with_dest_info_under_hbrt(struct PathValidationStructure *pvs,
+                                                               struct UserSpaceInfo *user_space_info,
+                                                               struct HashBasedRoutingTable *hbrt,
                                                                int source,
                                                                int bitset_length);
 

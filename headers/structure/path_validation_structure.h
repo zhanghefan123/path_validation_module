@@ -33,6 +33,8 @@ struct PathValidationStructure {
     struct shash_desc* hash_api;
     // hmac结构体
     struct shash_desc* hmac_api;
+    // LiR 单次插入的链路标识的个数
+    int lir_single_time_encoding_count;
 };
 
 struct PathValidationStructure *init_pvs(void);

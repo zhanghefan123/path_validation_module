@@ -506,3 +506,40 @@ int netlink_insert_interface_table_entry_handler(struct sk_buff *request, struct
     // -----------------------------------------------------------------
 }
 
+/**
+ * 设置 LiR 单词插入的元素的个数
+ * @param request
+ * @param info
+ * @return
+ */
+int netlink_set_lir_single_time_encoding_count_handler(struct sk_buff* request, struct genl_info* info){
+    // 1. 变量的定义
+    // -----------------------------------------------------------------
+    char *receive_buffer;               // 接收缓存 - 用来缓存用户空间下发的数据
+    char response_buffer[1024];         // 响应消息缓存
+    struct net *current_ns = sock_net(request->sk);
+    // -----------------------------------------------------------------
+
+    // 2. 参数的定义
+    // -----------------------------------------------------------------
+    int lir_single_time_encoding_count; // LiR 单次插入的元素的个数
+    // -----------------------------------------------------------------
+
+    // 3. 准备进行消息的处理
+    // -----------------------------------------------------------------
+    // 消息格式: number_of_routes, number_of_interfaces
+    // 3.1 读取参数
+    receive_buffer = recv_message(info);
+    lir_single_time_encoding_count = (int) (simple_strtol(receive_buffer, NULL, 10));
+    // 3.2 从 current_ns 之中获取 path_validation_structure
+    struct PathValidationStructure *pvs = get_pvs_from_ns(current_ns);
+    // 3.3 创建 path validation structure
+    pvs->lir_single_time_encoding_count = lir_single_time_encoding_count;
+    // -----------------------------------------------------------------
+
+    // 4. 准备进行消息的返回
+    // -----------------------------------------------------------------
+    snprintf(response_buffer, sizeof(response_buffer), "lir_single_time_encoding_count: %d", lir_single_time_encoding_count);
+    return send_reply(response_buffer, info);
+    // -----------------------------------------------------------------
+}

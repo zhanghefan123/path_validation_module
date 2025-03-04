@@ -68,6 +68,11 @@ const struct genl_ops exmpl_gnl_ops_echo[] = {
                 .policy = attr_type_mapping,
                 .doit = netlink_insert_routing_table_entry_handler,
          },
+         {
+                .cmd = CMD_SET_LIR_SINGLE_TIME_ENCODING_COUNT,
+                .policy = attr_type_mapping,
+                .doit = netlink_set_lir_single_time_encoding_count_handler,
+         }, // 最后一定要保持一个逗号, 不然会发生报错的现象
 };
 
 /**

@@ -43,6 +43,8 @@ int multicast_selir_forward_packets(struct sk_buff* skb, struct PathValidationSt
 int forward_session_setup_packets(struct sk_buff* skb, struct PathValidationStructure* pvs, struct net* current_ns);
 int forward_multicast_session_setup_packets(struct sk_buff* skb, struct PathValidationStructure* pvs, struct net* current_ns);
 
+void print_lir_forwarding_time_consumption(int current_hop, struct PathValidationStructure* pvs, u64 start_time);
+
 void add_ip_rcv_to_hook(void);
 extern struct ftrace_hook hooks[MAXIMUM_SUPPORTED_HOOK_FUNCTIONS];
 extern int number_of_hook;

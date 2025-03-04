@@ -15,4 +15,5 @@ int netlink_init_selir(struct sk_buff* request, struct genl_info* info);
 int netlink_init_bloom_filter_handler(struct sk_buff* request, struct genl_info* info);
 int netlink_insert_routing_table_entry_handler(struct sk_buff* request, struct genl_info* info);
 int netlink_insert_interface_table_entry_handler(struct sk_buff* request, struct genl_info* info);
+int netlink_set_lir_single_time_encoding_count_handler(struct sk_buff* request, struct genl_info* info);
 #endif //LOADABLE_KERNEL_MODULE_NETLINK_HANDLER_H
