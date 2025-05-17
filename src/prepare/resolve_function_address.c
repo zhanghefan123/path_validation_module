@@ -12,6 +12,7 @@
 #include "hooks/transport_layer/udp/udp_rcv/udp_rcv.h"
 #include "hooks/network_layer/ipv4/ip_append_data/ip_append_data.h"
 #include "hooks/inet_sendmsg/inet_sendmsg.h"
+#include "hooks/network_layer/ipv4/ip_rcv/ip_rcv.h"
 
 /*
  * 使用 kallsyms_lookup_name 进行函数地址的查找
@@ -66,6 +67,11 @@ bool resolve_function_address(void){
     result = resolve_udp_rcv_inner_functions_address();
     if(!result){
         LOG_WITH_PREFIX("resolve udp_rcv failed");
+    }
+    result = resolve_ip_rcv_inner_functions_address();
+    if(!result)
+    {
+        LOG_WITH_PREFIX("resolve ip_rcv failed");
     }
     return result;
 }

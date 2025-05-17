@@ -1,6 +1,7 @@
 #include "hooks/network_layer/ipv6/ipv6_rcv_finish/ipv6_rcv_finish.h"
 #include "hooks/network_layer/ipv6/ip6_rcv_finish_core/ip6_rcv_finish_core.h"
 #include "tools/tools.h"
+#include "api/check_srv6.h"
 #include <net/ip.h>
 
 /**
@@ -13,7 +14,7 @@
 int self_defined_ip6_rcv_finish(struct net *net,
                                 struct sock *sk,
                                 struct sk_buff *skb,
-                                bool is_srv6_and_tcp_packet,
+                                int is_srv6_and_tcp_packet,
                                 u64 start_time) {
     /* if ingress device is enslaved to an L3 master device pass the
 	 * skb to its handler for processing
@@ -28,10 +29,10 @@ int self_defined_ip6_rcv_finish(struct net *net,
     int result = dst_input(skb);
 
     // 打印函数的名称
-    if (is_srv6_and_tcp_packet) {
-        u64 time_elapsed = ktime_get_real_ns() - start_time;
-        printk(KERN_EMERG "srv6 forwarding takes %llu ns", time_elapsed);
-    }
+//    if (is_srv6_and_tcp_packet == HOP_EQUALS_ONE) {
+//        u64 time_elapsed = ktime_get_real_ns() - start_time;
+//       //  printk(KERN_EMERG "srv6 forwarding takes %llu ns", time_elapsed);
+//    }
 
     return result;
 }

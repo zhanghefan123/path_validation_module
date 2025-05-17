@@ -3,6 +3,7 @@
 #include "hooks/network_layer/ipv4/ip_packet_forward/ip_packet_forward.h"
 #include "hooks/network_layer/ipv4/ip_local_deliver/ip_local_deliver.h"
 #include "hooks/network_layer/ipv4/ip_send_check/ip_send_check.h"
+#include "structure/routing/variables.h"
 #include "structure/header/lir_header.h"
 #include "structure/namespace/namespace.h"
 #include "structure/crypto/bloom_filter.h"
@@ -61,10 +62,10 @@ void print_lir_forwarding_time_consumption(int current_hop, struct PathValidatio
         printk(KERN_EMERG "node %d, lir forwarding takes %llu ns to forward packet\n", pvs->node_id,
                ktime_get_real_ns() - start_time);
     }
-    if ((pvs->lir_single_time_encoding_count - 1) == current_hop) {
-        printk(KERN_EMERG "node %d, lir reencoding takes %llu ns to forward packet\n", pvs->node_id,
-               ktime_get_real_ns() - start_time);
-    }
+//    if ((pvs->lir_single_time_encoding_count - 1) == current_hop) {
+//        printk(KERN_EMERG "node %d, lir reencoding takes %llu ns to forward packet\n", pvs->node_id,
+//               ktime_get_real_ns() - start_time);
+//    }
 }
 
 
@@ -132,7 +133,12 @@ int lir_forward_packets(struct sk_buff *skb, struct PathValidationStructure *pvs
     // 7. 判断是否没有转发, 并且不是最终的目的节点, 说明是中间节点
     if (!packet_forwarded && (NET_RX_SUCCESS != result)) {
         // 如果数据包没有转发, 说明这个是中间节点, 进行路由表的查找
-        struct RoutingTableEntry *rte = find_sre_in_hbrt(pvs->hbrt, pvs->node_id, first_destination);
+        struct RoutingTableEntry* rte = NULL;
+        if (pvs->routing_table_type == ARRAY_BASED_ROUTING_TABLE_TYPE){
+            rte = find_rte_in_abrt(pvs->abrt, first_destination);
+        } else if(pvs->routing_table_type == HASH_BASED_ROUTING_TABLE_TYPE) {
+            rte = find_sre_in_hbrt(pvs->hbrt, first_destination, pvs->node_id);
+        }
         if (NULL != rte) {
             // 进行布隆过滤器的重置并将新的链路标识进行嵌入
             reset_bloom_filter(pvs->bloom_filter);
@@ -149,6 +155,7 @@ int lir_forward_packets(struct sk_buff *skb, struct PathValidationStructure *pvs
             // 将数据包从 rte 所指定的出接口转发出去
             pv_packet_forward(skb, rte->output_interface, current_ns);
         }
+        result = NET_RX_NOTHING;
     }
 
     // 进行还原

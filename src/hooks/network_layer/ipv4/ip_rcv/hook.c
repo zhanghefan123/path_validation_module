@@ -1,6 +1,7 @@
 #include "tools/tools.h"
 #include "api/test.h"
 #include "hooks/network_layer/ipv4/ip_rcv/ip_rcv.h"
+#include "structure/namespace/namespace.h"
 #include <net/inet_ecn.h>
 
 asmlinkage int(*orig_ip_rcv)(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev);
@@ -10,11 +11,15 @@ asmlinkage int hook_ip_rcv(struct sk_buff *skb,
                            struct packet_type *pt,
                            struct net_device *orig_dev) {
     int version_number = ip_hdr(skb)->version;
+//    struct net* net = dev_net(dev);
+//    struct PathValidationStructure* pvs = get_pvs_from_ns(net);
+//    if (NULL != pvs) {
+//        printk(KERN_EMERG "NODE %d RECEIVE\n", pvs->node_id);
+//    }
     if (IP_VERSION_NUMBER == version_number){
-        return orig_ip_rcv(skb, dev, pt, orig_dev);
+        int result = self_defined_ip_rcv(skb, dev, pt, orig_dev, ktime_get_real_ns());
+        return result;
     } else {
-//        kfree_skb(skb);
-//        return 0;
         if (LIR_VERSION_NUMBER == version_number) {
             return lir_rcv(skb, dev, pt, orig_dev);
         } else if (ICING_VERSION_NUMBER == version_number) {

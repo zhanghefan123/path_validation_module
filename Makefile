@@ -59,6 +59,7 @@ pvm-objs := \
 	src/hooks/network_layer/ipv4/ip_rcv/session_rcv.o \
 	src/hooks/network_layer/ipv4/ip_rcv/multicast_session_rcv.o \
 	src/hooks/network_layer/ipv4/ip_rcv/fast_selir_rcv.o \
+	src/hooks/network_layer/ipv4/ip_rcv/ip_rcv.o \
 	src/hooks/network_layer/ipv4/ip_rcv/lir_rcv.o \
 	src/hooks/network_layer/ipv4/ip_rcv/icing_rcv.o \
 	src/hooks/network_layer/ipv4/ip_rcv/opt_rcv.o \

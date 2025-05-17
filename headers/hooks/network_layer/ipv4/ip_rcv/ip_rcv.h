@@ -14,6 +14,10 @@
 // #define NET_RX_DROP		1	/* packet dropped */
 #define NET_RX_NOTHING 2
 
+bool resolve_ip_rcv_inner_functions_address(void);
+int self_defined_ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt,
+                        struct net_device *orig_dev, u64 start);
+int self_defined_ip_rcv_finish(struct net *net, struct sock *sk, struct sk_buff *skb, u64 start);
 int lir_rcv(struct sk_buff* skb, struct net_device* dev, struct packet_type *pt, struct net_device* orig_dev);
 int icing_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev);
 int opt_rcv(struct sk_buff* skb, struct net_device* dev, struct packet_type *pt, struct net_device* orig_dev);

@@ -390,11 +390,12 @@ int netlink_insert_routing_table_entry_handler(struct sk_buff *request, struct g
                 rte->node_ids = (int *) kmalloc(sizeof(int) * path_length, GFP_KERNEL);
             } else {
                 if (count == 3) {
+                    printk(KERN_EMERG "current node id: %d source: %d target: %d link_identifier: %d \n", pvs->node_id, source_id, destination_id, variable_in_integer);
                     first_link_identifier = variable_in_integer;
                     first_interface = find_ite_in_abit(pvs->abit, first_link_identifier);
                     rte->output_interface = first_interface;
                     rte->link_identifiers[link_identifier_index++] = variable_in_integer;
-                    // 第一个 link identifier 不用 push 到布隆过滤器之中
+                    // 第一个 link identifier 不用 push 到布隆过滤器之中, confirm the interface according to the first link identifier
                 } else if (count % 2 == 0) { // node id
                     rte->node_ids[node_index++] = variable_in_integer;
                 } else if (count % 2 == 1) { // link identifier
@@ -476,8 +477,6 @@ int netlink_insert_interface_table_entry_handler(struct sk_buff *request, struct
                 ifindex = variable_in_integer;
             } else if (count == 3){
                 peer_ip_address = in_aton(variable_in_str);
-                printk(KERN_EMERG "peer_interface_address_str: %s\n", variable_in_str);
-                printk(KERN_EMERG "peer_interface_address: %pI4\n", &peer_ip_address);
             } else {
                 return -EINVAL;
             }

@@ -1,4 +1,5 @@
 #include <linux/netfilter.h>
+#include "structure/namespace/namespace.h"
 #include "tools/tools.h"
 #include "hooks/network_layer/ipv6/ipv6_rcv/ipv6_rcv.h"
 #include "hooks/network_layer/ipv6/ipv6_rcv_finish/ipv6_rcv_finish.h"
@@ -44,15 +45,17 @@ int self_defined_ipv6_rcv(struct sk_buff *skb,
                           struct packet_type *pt,
                           struct net_device *orig_dev){
     // 记录开始的时间
-    u64 start_time;
+    u64 start_time = ktime_get_real_ns();
 
     // 检测是否是 srv6 并且上层承载的是 TCP 数据包
-    bool is_srv6_and_tcp_packet = check_if_srv6_and_tcp(skb);
-
-    // 获取开始时间
-    start_time = ktime_get_real_ns();
+    int is_srv6_and_tcp_packet = check_if_srv6_and_other(skb);
 
     struct net *net = dev_net(skb->dev);
+
+//    if(is_srv6_and_tcp_packet == HOP_NOT_EQUALS_ONE){
+//        return NET_RX_DROP;
+//    }
+
 
     skb = original_ip6_rcv_core(skb, dev, net);
     if (skb == NULL) {

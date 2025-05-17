@@ -72,7 +72,7 @@ struct RoutingCalcRes *construct_rcr_with_user_space_info(struct PathValidationS
                                                           int source) {
     struct RoutingCalcRes *rcr;
     if (ARRAY_BASED_ROUTING_TABLE_TYPE == pvs->routing_table_type) {
-        rcr = construct_rcr_with_user_space_info_under_abrt(user_space_info, pvs->abrt, source,
+        rcr = construct_rcr_with_user_space_info_under_abrt(pvs, user_space_info, pvs->abrt, source,
                                                             (int) (pvs->bloom_filter->bf_effective_bytes));
     } else if (HASH_BASED_ROUTING_TABLE_TYPE == pvs->routing_table_type) {
         rcr = construct_rcr_with_dest_info_under_hbrt(pvs, user_space_info, pvs->hbrt, source,
@@ -92,7 +92,8 @@ struct RoutingCalcRes *construct_rcr_with_user_space_info(struct PathValidationS
  * @param bitset_length 字节数组长度
  * @return
  */
-struct RoutingCalcRes *construct_rcr_with_user_space_info_under_abrt(struct UserSpaceInfo *user_space_info,
+struct RoutingCalcRes *construct_rcr_with_user_space_info_under_abrt(struct PathValidationStructure* pvs,
+                                                                     struct UserSpaceInfo *user_space_info,
                                                                      struct ArrayBasedRoutingTable *abrt,
                                                                      int source,
                                                                      int bitset_length) {
@@ -103,15 +104,35 @@ struct RoutingCalcRes *construct_rcr_with_user_space_info_under_abrt(struct User
     } else {
         // 2. 因为
         // 创建 rcr
-        struct RoutingCalcRes *rcr = init_rcr(source, user_space_info, bitset_length,
-                                              user_space_info->path_validation_protocol);
+        struct RoutingCalcRes *rcr = init_rcr(source, user_space_info, bitset_length,user_space_info->path_validation_protocol);
         // 只允许单个目的节点
         struct RoutingTableEntry *rte = find_rte_in_abrt(abrt, user_space_info->destinations[0]);
-        // 设置出接口
-        rcr->ite->interface = rte->output_interface->interface;
+        if (NULL == rte) {
+            LOG_WITH_PREFIX("no route found");
+            return NULL;
+        } else {
+            // 设置出接口
+            // LOG_WITH_PREFIX("find route");
+            rcr->ite = rte->output_interface;
+            if (NULL == rte->output_interface){
+                LOG_WITH_PREFIX("output interface is null");
+            }
+        }
         // 如果在这个结构下, 只允许单个目的地址
         if (LIR_VERSION_NUMBER == user_space_info->path_validation_protocol) {
-            memory_or(rcr->bitset, rte->bitset, (int) (bitset_length)); // 进行按位或运算
+            if(-1 == pvs->lir_single_time_encoding_count){
+                // 更新 bitset
+                memory_or(rcr->bitset, rte->bitset, (int) (bitset_length));
+            } else {
+                // 插入指定数量的链路标识来进行更新
+                unsigned char* old_bit_set = pvs->bloom_filter->bitset;
+                pvs->bloom_filter->bitset = rcr->bitset;
+                int index;
+                for(index = 0; index < pvs->lir_single_time_encoding_count; index++){
+                    push_element_into_bloom_filter(pvs->bloom_filter, &(rte->link_identifiers[index]), sizeof(rte->link_identifiers[index]));
+                }
+                pvs->bloom_filter->bitset = old_bit_set;
+            }
         } else if (ICING_VERSION_NUMBER == user_space_info->path_validation_protocol) {
             rcr->rtes[0] = rte;  // 因为要进行后续的
         } else if (OPT_VERSION_NUMBER == user_space_info->path_validation_protocol) {
@@ -155,6 +176,11 @@ struct RoutingCalcRes *construct_rcr_with_dest_info_under_hbrt(struct PathValida
         struct RoutingTableEntry *source_to_primary = find_sre_in_hbrt(hbrt, source, primaryNodeId);
         // 更新出接口和 bitset
         rcr->ite = source_to_primary->output_interface;
+        if(NULL != rcr->ite){
+            printk(KERN_EMERG "OUTPUT INTERFACE IS %s", rcr->ite->interface->name);
+        } else {
+            printk(KERN_EMERG "OUTPUT INTERFACE IS NULL");
+        }
         // 判断是否等于 -1, 如果等于 -1 的话就代表全部插入
         if(-1 == pvs->lir_single_time_encoding_count){
             // 更新 bitset

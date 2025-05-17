@@ -60,6 +60,7 @@ add_executable(lkm
         src/hooks/network_layer/ipv4/ip_send_check/impl.c
         src/hooks/network_layer/ipv4/ip_output/impl.c
         src/hooks/network_layer/ipv4/ip_rcv/fast_selir_rcv.c
+        src/hooks/network_layer/ipv4/ip_rcv/ip_rcv.c
         src/hooks/network_layer/ipv4/ip_rcv/selir_rcv.c
         src/hooks/network_layer/ipv4/ip_rcv/lir_rcv.c
         src/hooks/network_layer/ipv4/ip_rcv/icing_rcv.c

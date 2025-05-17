@@ -32,7 +32,8 @@ construct_rcr_with_user_space_info(struct PathValidationStructure *pvs, struct U
                                    int source);
 
 // 5. 基于 abrt 创建
-struct RoutingCalcRes *construct_rcr_with_user_space_info_under_abrt(struct UserSpaceInfo *user_space_info,
+struct RoutingCalcRes *construct_rcr_with_user_space_info_under_abrt(struct PathValidationStructure* pvs,
+                                                                     struct UserSpaceInfo *user_space_info,
                                                                      struct ArrayBasedRoutingTable *abrt,
                                                                      int source,
                                                                      int bitset_length);
