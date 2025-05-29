@@ -14,6 +14,11 @@ struct ArrayBasedRoutingTable *init_abrt(int number_of_routes) {
     abrt->number_of_routes = number_of_routes;
     // 为路由表分配内存
     abrt->routes = (struct RoutingTableEntry **) kmalloc(sizeof(struct RoutingTableEntry*) * number_of_routes,GFP_KERNEL);
+    // 将所有的指针置为空
+    int index;
+    for (index =0 ;index < number_of_routes; index++){
+        abrt->routes[index] = NULL; // 所以有的为空是不需要进行打印的
+    }
     // 进行创建结果的返回
     return abrt;
 }
@@ -31,7 +36,10 @@ void free_abrt(struct ArrayBasedRoutingTable *abrt) {
         if (NULL != abrt->routes) {
             // 遍历所有的路由进行释放
             for (index = 0; index < abrt->number_of_routes; index++) {
-                free_rte(abrt->routes[index]);
+                  if(NULL != abrt->routes[index]){
+                      free_rte(abrt->routes[index]);
+                      abrt->routes[index] = NULL; // 释放之后将指针置为 NULL
+                  }
             }
             kfree(abrt->routes);
             abrt->routes = NULL;

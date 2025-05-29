@@ -35,6 +35,7 @@ enum {
     CMD_INSERT_INTERFACE_TABLE_ENTRY, // 6. 进行接口表条目的插入 (注意要首先进行接口表条目的插入, 因为在构建路由表的时候需要利用到接口表)
     CMD_INSERT_ROUTING_TABLE_ENTRY, // 7. 进行路由表条目的插入
     CMD_SET_LIR_SINGLE_TIME_ENCODING_COUNT, // 8. 设置 LiR 单词插入的元素的个数
+    CMD_PRINT_ROUTING_TABLE_ENTRIES, // 9. 释放网络命名空间之中的内存
 };
 
 #define VERSION_NR 1

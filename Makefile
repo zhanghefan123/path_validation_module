@@ -85,16 +85,18 @@ pvm-objs := \
 
 OUTPUT_DIR = "./build"
 
-# 这个必须要是 headers 的绝对路径才能行
-#ccflags-y += -I/home/zhf/Projects/srv6/linux/path_validation_module/headers
-#ccflags-y += -I/home/zhf/Projects/linux/selir/headers
-ccflags-y += -I/home/zhf/Projects/emulator/path_validation_module/headers
+# 北航服务器的 ccflags-y
+# ccflags-y += -I/home/zhf/Projects/emulator/path_validation_module/headers
+
+# 树莓派的 ccflags-y
+ccflags-y += -I/home/zhf/Projects/emulator/raspberrypi_module/headers
+
 
 all: compile
 	echo "successful make"
 
 compile:
-	make -C /lib/modules/5.19.0/build/ M=$(PWD) modules
+	make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -C /lib/modules/5.19.17-LiP-Kernel/build/   M=$(PWD) modules
 
 mv:
 	mv .*.cmd *.ko *.o *.mod *.mod.c Module.symvers modules.order $(OUTPUT_DIR)

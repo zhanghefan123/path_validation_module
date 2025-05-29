@@ -2,8 +2,8 @@
 #include "tools/tools.h"
 #include <linux/kernel.h>
 #include <linux/jhash.h>
-#include <asm-generic/bitops/instrumented-atomic.h>
-#include <asm-generic/bitops/instrumented-non-atomic.h>
+//#include <asm-generic/bitops/instrumented-atomic.h>
+//#include <asm-generic/bitops/instrumented-non-atomic.h>
 
 
 /**

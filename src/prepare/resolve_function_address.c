@@ -29,21 +29,21 @@ bool resolve_function_address(void){
         LOG_WITH_PREFIX("resolve ip6_rcv_finish_core failed");
         return result;
     }
-    result = resolve_tcp_v4_rcv_inner_functions_address();
-    if(!result){
-        LOG_WITH_PREFIX("resolve tcp_v4_rcv failed");
-        return result;
-    }
-    result = resolve_tcp_v4_do_rcv_inner_functions_address();
-    if(!result){
-        LOG_WITH_PREFIX("resolve tcp_v4_do_rcv failed");
-        return result;
-    }
-    result = resolve_tcp_rcv_established_inner_functions_address();
-    if(!result){
-        LOG_WITH_PREFIX("resolve tcp_rcv_established failed");
-        return result;
-    }
+//    result = resolve_tcp_v4_rcv_inner_functions_address();
+//    if(!result){
+//        LOG_WITH_PREFIX("resolve tcp_v4_rcv failed");
+//        return result;
+//    }
+//    result = resolve_tcp_v4_do_rcv_inner_functions_address();
+//    if(!result){
+//        LOG_WITH_PREFIX("resolve tcp_v4_do_rcv failed");
+//        return result;
+//    }
+//    result = resolve_tcp_rcv_established_inner_functions_address();
+//    if(!result){
+//        LOG_WITH_PREFIX("resolve tcp_rcv_established failed");
+//        return result;
+//    }
     result = resolve_udp_sendmsg_inner_functions();
     if(!result){
         LOG_WITH_PREFIX("resolve udp_sendmsg failed");

@@ -93,10 +93,22 @@ add_executable(lkm
 
 )
 
+# 北航服务器的 内核头文件路径
+# -----------------------------------------------------------------
+#set(HEADERS_DIR
+#        /usr/src/linux-hwe-5.19-headers-5.19.0-41/include
+#        /usr/src/linux-hwe-5.19-headers-5.19.0-41/arch/x86/include
+#        headers)
+# -----------------------------------------------------------------
+
+# 树莓派的 内核头文件路径
+# -----------------------------------------------------------------
 set(HEADERS_DIR
-        /usr/src/linux-hwe-5.19-headers-5.19.0-41/include
-        /usr/src/linux-hwe-5.19-headers-5.19.0-41/arch/x86/include
-        headers)
+    /usr/src/linux-headers-5.19.17/include
+    /usr/src/linux-headers-5.19.17/arch/arm64/include
+    headers
+)
+# -----------------------------------------------------------------
 
 # CLion IDE will find symbols from <linux/*>
 target_include_directories("lkm" PRIVATE ${HEADERS_DIR})

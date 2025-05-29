@@ -9,13 +9,19 @@
 DEFINE_STATIC_KEY_FALSE(ip4_min_ttl);
 
 char* tcp_v4_fill_cb_str = "tcp_v4_fill_cb";
-char* tcp_v4_restore_cb_str = "tcp_v4_restore_cb";
+//char* tcp_v4_restore_cb_str = "tcp_v4_restore_cb";
 char* tcp_v4_send_reset_str = "tcp_v4_send_reset";
 char* tcp_v4_send_ack_str = "tcp_v4_send_ack";
 char* cookie_v4_check_str = "cookie_v4_check";
 
+static void tcp_v4_restore_cb(struct sk_buff *skb)
+{
+    memmove(IPCB(skb), &TCP_SKB_CB(skb)->header.h4,
+            sizeof(struct inet_skb_parm));
+}
+
 asmlinkage void (*orig_tcp_v4_fill_cb)(struct sk_buff *skb, const struct iphdr *iph,const struct tcphdr *th);
-asmlinkage void (*orig_tcp_v4_restore_cb)(struct sk_buff *skb);
+//asmlinkage void (*orig_tcp_v4_restore_cb)(struct sk_buff *skb);
 asmlinkage void (*orig_tcp_v4_send_reset)(const struct sock *sk, struct sk_buff *skb);
 asmlinkage void (*orig_tcp_v4_send_ack)(const struct sock *sk,
                                         struct sk_buff *skb, u32 seq, u32 ack,
@@ -29,20 +35,20 @@ bool resolve_tcp_v4_rcv_inner_functions_address(void){
     // 解析结果
     bool resolve_result;
     // 所有待初始化的函数指针构成的数组
-    void *functions[5];
-    char* function_names[5] = {
+    void *functions[4];
+    char* function_names[4] = {
             tcp_v4_fill_cb_str,
-            tcp_v4_restore_cb_str,
+//            tcp_v4_restore_cb_str,
             tcp_v4_send_reset_str,
             tcp_v4_send_ack_str,
             cookie_v4_check_str
     };
-    resolve_result = resolve_functions_addresses(functions, function_names, 5);
+    resolve_result = resolve_functions_addresses(functions, function_names, 4);
     orig_tcp_v4_fill_cb = functions[0];
-    orig_tcp_v4_restore_cb = functions[1];
-    orig_tcp_v4_send_reset = functions[2];
-    orig_tcp_v4_send_ack = functions[3];
-    orig_cookie_v4_check = functions[4];
+//    orig_tcp_v4_restore_cb = functions[1];
+    orig_tcp_v4_send_reset = functions[1];
+    orig_tcp_v4_send_ack = functions[2];
+    orig_cookie_v4_check = functions[3];
     LOG_WITH_EDGE("end to resolve tcp_v4_rcv inner functions address");
     return resolve_result;
 }
@@ -178,7 +184,7 @@ int self_defined_tcp_v4_rcv(struct sk_buff* skb){
                  * Try to feed this packet to this socket
                  * instead of discarding it.
                  */
-                orig_tcp_v4_restore_cb(skb);
+                tcp_v4_restore_cb(skb);
                 sock_put(sk);
                 goto lookup;
             }
@@ -187,7 +193,7 @@ int self_defined_tcp_v4_rcv(struct sk_buff* skb){
         nf_reset_ct(skb);
         if (nsk == sk) {
             reqsk_put(req);
-            orig_tcp_v4_restore_cb(skb);
+            tcp_v4_restore_cb(skb);
         } else if (tcp_child_process(sk, nsk, skb)) {
             orig_tcp_v4_send_reset(nsk, skb);
             goto discard_and_relse;
@@ -311,7 +317,7 @@ int self_defined_tcp_v4_rcv(struct sk_buff* skb){
             if (sk2) {
                 inet_twsk_deschedule_put(inet_twsk(sk));
                 sk = sk2;
-                orig_tcp_v4_restore_cb(skb);
+                tcp_v4_restore_cb(skb);
                 refcounted = false;
                 goto process;
             }

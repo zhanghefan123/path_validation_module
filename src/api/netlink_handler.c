@@ -542,3 +542,52 @@ int netlink_set_lir_single_time_encoding_count_handler(struct sk_buff* request, 
     return send_reply(response_buffer, info);
     // -----------------------------------------------------------------
 }
+
+
+int print_routing_table_entries(struct sk_buff *request, struct genl_info *info) {
+    // 1. 变量的定义
+    // -----------------------------------------------------------------
+    char* receive_buffer; // 接收无意义的一个数字
+    char response_buffer[1024];         // 响应消息缓存
+    struct net *current_ns = sock_net(request->sk);
+    // -----------------------------------------------------------------
+
+    // 2. 参数的定义
+    // -----------------------------------------------------------------
+    int useless_param;
+    // -----------------------------------------------------------------
+
+
+    // 3. 准备进行消息的处理
+    // -----------------------------------------------------------------
+    // 3.1 读取参数
+    receive_buffer = recv_message(info);
+    useless_param = (int) (simple_strtol(receive_buffer, NULL, 10));
+    printk(KERN_EMERG "free memory in net namespace, useless_param: %d\n", useless_param);
+    // 3.2 进行路由表的打印
+    struct PathValidationStructure *pvs = get_pvs_from_ns(current_ns);
+    if (NULL == pvs) {
+        printk(KERN_EMERG "pvs == NULL\n");
+        return -EINVAL;
+    } else {
+        printk(KERN_EMERG "abrt number of routes: %d\n", pvs->abrt->number_of_routes);
+        int index;
+        for(index=0; index < pvs->abrt->number_of_routes; index++){
+            struct RoutingTableEntry *rte = pvs->abrt->routes[index];
+            if(NULL != rte){
+                printk(KERN_EMERG "rte source: %d, destination: %d, path_length: %d\n",
+                       rte->source_id, rte->destination_id, rte->path_length);
+            } else {
+                printk(KERN_EMERG "rte is NULL at index: %d\n", index);
+            }
+        }
+    }
+    // -----------------------------------------------------------------
+
+    // 4. 准备进行消息的返回
+    // -----------------------------------------------------------------
+    snprintf(response_buffer, sizeof(response_buffer), "free memory in net namespace node_id: %d, useless_param: %d",
+             pvs->node_id, useless_param);
+    return send_reply(response_buffer, info);
+    // -----------------------------------------------------------------
+}

@@ -31,20 +31,19 @@ struct PathValidationStructure *init_pvs(void) {
  * @param path_validation_structure 路径验证数据结构
  */
 void free_pvs(struct PathValidationStructure *pvs) {
-    if(NULL != pvs) {
-//        // 进行基于数组路由表的释放
+    if (NULL != pvs) {
+        // 进行基于数组路由表的释放
         free_abrt(pvs->abrt);
-//        // 进行基于哈希的路由表的释放
+        // 进行基于哈希的路由表的释放
         free_hbrt(pvs->hbrt);
-//        // 进行基于数组的接口表的释放
+        // 进行基于数组的接口表的释放
         free_abit(pvs->abit);
-//        // 进行基于哈希的会话表的释放
+        // 进行基于哈希的会话表的释放
         free_hbst(pvs->hbst);
-//        // 进行布隆过滤器的释放
+        // 进行布隆过滤器的释放
         delete_bloom_filter(pvs->bloom_filter);
-          // 进行 selir 信息的释放
+        // 进行 selir 信息的释放
         free_selir_info(pvs->selir_info);
-
 // ---------------- 一旦进行这两个数据结构的释放就会出错 ----------------
         // 进行哈希数据结构的释放
         free_crypto_api(pvs->hash_api);

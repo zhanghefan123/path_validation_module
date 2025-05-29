@@ -27,11 +27,31 @@
 
 5. 原先在给 current_ns->pvs 赋值之前并没有将其置为 NULL, 可能出现问题。必须要将其置为 NULL.
 
-6. 在计算哈希之前需要将校验和置为0
+6. 路由表的各个条目在分配内存之后一定要置为 NULL, 不然可能会空指针。
 
-7. 注意在进行 hmac 计算的时候需要传入 data data_length key key_length, 我们需要仔细判断哪些 length 可以使用 strlen 来获得
+```c
+struct ArrayBasedRoutingTable *init_abrt(int number_of_routes) {
+    // 分配内存
+    struct ArrayBasedRoutingTable *abrt = (struct ArrayBasedRoutingTable *) kmalloc(sizeof(struct ArrayBasedRoutingTable), GFP_KERNEL);
+    // 设置路由条数
+    abrt->number_of_routes = number_of_routes;
+    // 为路由表分配内存
+    abrt->routes = (struct RoutingTableEntry **) kmalloc(sizeof(struct RoutingTableEntry*) * number_of_routes,GFP_KERNEL);
+    // 将所有的指针置为空
+    int index;
+    for (index =0 ;index < number_of_routes; index++){
+        abrt->routes[index] = NULL; // 所以有的为空是不需要进行打印的
+    }
+    // 进行创建结果的返回
+    return abrt;
+}
+```
 
-8. general protection fault error 出现的原因, 一般是我们 free 了内存。
+7. 在计算哈希之前需要将校验和置为0
+
+8. 注意在进行 hmac 计算的时候需要传入 data data_length key key_length, 我们需要仔细判断哪些 length 可以使用 strlen 来获得
+
+general protection fault error 出现的原因, 一般是我们 free 了内存。
 
 # directory illustration:
 
