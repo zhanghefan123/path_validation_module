@@ -26,6 +26,7 @@ struct FastSELiRHeader {
     __u16 tot_len;          // 总的长度 字段10
     __u16 ppf_len;          // ppf长度 字段11
     __u16 dest_len;         // 目的节点个数 字段12
+    __u16 destination;      // 负责给多路径用的
     __sum16 check;          // 校验和 字段7
 };
 
@@ -40,7 +41,7 @@ struct EncPvf {
 };
 
 // 获取各个字段的指针
-// 标准头部 -> DataHash -> SessionID -> TimeStamp -> SELiRPvf -> EncPvf -> Destinations
+// 标准头部 -> DataHash -> SessionID -> TimeStamp -> hvf -> dvf -> ppf -> Destinations
 // ------------------------------------------------------------------------------------------------------------
 static inline unsigned char *get_fast_selir_hash_start_pointer(struct FastSELiRHeader *fast_selir_header) {
     return (unsigned char *) (fast_selir_header) +
@@ -85,17 +86,6 @@ static inline unsigned char *get_fast_selir_ppf_start_pointer(struct FastSELiRHe
            sizeof(struct TimeStamp) +
            sizeof(struct SELiRPvf) +
            sizeof(struct EncPvf);
-}
-
-static inline unsigned char *get_fast_selir_dest_start_pointer(struct FastSELiRHeader *fast_selir_header, int ppf_length) {
-    return (unsigned char *) (fast_selir_header) +
-           sizeof(struct FastSELiRHeader) +
-           sizeof(struct DataHash) +
-           sizeof(struct SessionID) +
-           sizeof(struct TimeStamp) +
-           sizeof(struct SELiRPvf) +
-           sizeof(struct EncPvf) +
-           ppf_length;
 }
 // ------------------------------------------------------------------------------------------------------------
 

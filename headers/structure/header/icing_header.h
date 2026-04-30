@@ -32,7 +32,7 @@ struct ICINGHeader {
     __u16 length_of_path;     // 路径长度 字段12
     __sum16 check;          // 校验和 字段7
     __u16 current_path_index; // 当前索引 字段13
-    unsigned char data[0];  // 额外的部分 (这里是指的 bf 的 bitarray)
+    unsigned char data[0];  // 额外的部分 (这里是指的是 ICING 后续的验证字段)
 };
 
 struct ICINGHop {

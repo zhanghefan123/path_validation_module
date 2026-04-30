@@ -9,8 +9,11 @@
 // 1. 接口表项相关内容
 // ----------------------------------------------------------------------------------------------
 struct InterfaceTableEntry {
-    int index;
+    int index; // 索引 注意不是 ifindex
+    int ifindex; // 唯一标识符号接口的 ifindex
     int link_identifier; // 链路标识
+    int source_node_id; // 源节点
+    int target_node_id; // 目的节点
     struct net_device *interface; // 对应的接口
     __be32 peer_ip_address; // 对侧接口的 ip 地址
     unsigned char* bitset; // 将这个标识插入之后的布隆过滤器
@@ -25,10 +28,11 @@ struct ArrayBasedInterfaceTable{
     // 所有的接口
     struct InterfaceTableEntry** interfaces;
 };
-struct InterfaceTableEntry* init_ite(int index, int effective_bytes);
+struct InterfaceTableEntry* init_ite(int index, int ifindex, int effective_bytes);
 struct ArrayBasedInterfaceTable* init_abit(int number_of_interfaces);
 void free_abit(struct ArrayBasedInterfaceTable* abit);
-struct InterfaceTableEntry* find_ite_in_abit(struct ArrayBasedInterfaceTable* abit, int link_identifier);
+struct InterfaceTableEntry* find_ite_in_abit_with_link_identifier(struct ArrayBasedInterfaceTable* abit, int link_identifier);
+struct InterfaceTableEntry* find_ite_in_abit_with_ifindex(struct ArrayBasedInterfaceTable* abit, int ifindex);
 void add_ite_to_abit(struct ArrayBasedInterfaceTable* abit, struct InterfaceTableEntry* ite);
 void free_ite(struct InterfaceTableEntry* entry);
 // ----------------------------------------------------------------------------------------------

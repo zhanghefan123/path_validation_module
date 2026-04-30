@@ -16,7 +16,8 @@ int session_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type 
     skb = session_rcv_validate(skb, current_ns);
     if (NULL == skb) {
         LOG_WITH_PREFIX("skb == NULL");
-        return 0;
+        kfree_skb(skb);
+        return NET_RX_DROP;
     }
     process_result = forward_session_setup_packets(skb, pvs, current_ns);
 
@@ -28,7 +29,7 @@ int session_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type 
 }
 
 static void destination_process_session_packets(struct PathValidationStructure *pvs, struct SessionHop *path,
-                                                struct SessionID *session_id, int path_length,
+                                                struct SessionID *session_id, struct shash_desc* hmac_api, int path_length,
                                                 int current_path_index, int source) {
     // 索引
     int index;
@@ -45,7 +46,7 @@ static void destination_process_session_packets(struct PathValidationStructure *
     // 计算 session_key
     char secret_value[20];
     snprintf(secret_value, sizeof(secret_value), "key-%d", pvs->node_id);
-    unsigned char *session_key = calculate_hmac(pvs->hmac_api,
+    unsigned char *session_key = calculate_hmac(hmac_api,
                                                 (unsigned char *) (session_id),
                                                 sizeof(struct SessionID),
                                                 (unsigned char *) (secret_value),
@@ -76,7 +77,7 @@ static void destination_process_session_packets(struct PathValidationStructure *
         // 产生 secret_value
         snprintf(secret_value, sizeof(secret_value), "key-%d", encrypt_node);
         // 计算 session_key
-        unsigned char *session_key_tmp = calculate_hmac(pvs->hmac_api,
+        unsigned char *session_key_tmp = calculate_hmac(hmac_api,
                                                         (unsigned char *) session_id,
                                                         sizeof(struct SessionID),
                                                         (unsigned char *) secret_value,
@@ -107,6 +108,7 @@ static void intermediate_process_session_packets(struct sk_buff *skb,
                                                  struct SessionHop *path,
                                                  struct SessionHeader *session_header,
                                                  struct net *current_ns,
+                                                 struct shash_desc* hmac_api,
                                                  int current_link_identifier,
                                                  int current_path_index,
                                                  int source) {
@@ -121,6 +123,11 @@ static void intermediate_process_session_packets(struct sk_buff *skb,
             break;
         }
     }
+    // 如果为空直接返回
+    if(NULL == ite){
+        return;
+    }
+
     // 需要进行前驱节点的记录
     int previous_node;
     if (0 == current_path_index) {
@@ -131,7 +138,7 @@ static void intermediate_process_session_packets(struct sk_buff *skb,
     // 依据 session_id 以及 secret_value 进行 session_key 的计算
     char secret_value[20];
     snprintf(secret_value, sizeof(secret_value), "key-%d", pvs->node_id);
-    unsigned char *session_key = calculate_hmac(pvs->hmac_api,
+    unsigned char *session_key = calculate_hmac(hmac_api,
                                                 (unsigned char *) (session_id),
                                                 sizeof(struct SessionID),
                                                 (unsigned char *) (secret_value),
@@ -151,6 +158,7 @@ static void intermediate_process_session_packets(struct sk_buff *skb,
 }
 
 int forward_session_setup_packets(struct sk_buff *skb, struct PathValidationStructure *pvs, struct net* current_ns) {
+    int final_result = NET_RX_DROP;
     // 1. 拿到首部
     struct SessionHeader *session_header = session_hdr(skb);
     // 2. 拿到路径长度
@@ -167,16 +175,22 @@ int forward_session_setup_packets(struct sk_buff *skb, struct PathValidationStru
     int destination = session_header->dest;
     // 8. 拿到当前的 link identifier
     int current_link_identifier = path[current_index].link_id;
+    // 进行 pv_struct 创建
+//    struct pv_struct p = create_pv_struct(false, true, false, NULL);
+    struct pv_struct* p = get_cpu_ptr(&validation_api);
     // 9. 拿到当前的 id
     int current_node_id = pvs->node_id;
     if (current_node_id == destination) {
-        destination_process_session_packets(pvs, path, session_id, path_length, current_index, source);
-        return NET_RX_DROP;
+        destination_process_session_packets(pvs, path, session_id, p->hmac_api, path_length, current_index, source);
+        final_result = NET_RX_DROP;
     } else {
-        intermediate_process_session_packets(skb, pvs, session_id, path, session_header, current_ns,
+        intermediate_process_session_packets(skb, pvs, session_id, path, session_header, current_ns, p->hmac_api,
                                              current_link_identifier, current_index, source);
-        return NET_RX_NOTHING;
+        final_result =  NET_RX_NOTHING;
     }
+//    free_pv_struct(&p);
+    put_cpu_ptr(p);
+    return final_result;
 }
 
 

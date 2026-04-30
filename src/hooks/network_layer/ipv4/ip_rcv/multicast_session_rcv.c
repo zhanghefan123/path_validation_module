@@ -16,9 +16,10 @@ int multicast_session_rcv(struct sk_buff *skb, struct net_device *dev, struct pa
     skb = multicast_session_rcv_validate(skb, current_ns);
     if (NULL == skb) {
         LOG_WITH_PREFIX("skb == NULL");
-        return 0;
+        kfree_skb(skb);
+        return NET_RX_DROP;
     }
-    process_result = forward_multicast_session_setup_packets(skb, pvs, current_ns);
+    process_result = forward_multicast_session_setup_packets(skb, pvs, current_ns, orig_dev);
 
     // 5. 进行数据包本地的处理 -> session packet 本就不需要进行本地交付
     if (NET_RX_DROP == process_result) {
@@ -30,6 +31,7 @@ int multicast_session_rcv(struct sk_buff *skb, struct net_device *dev, struct pa
 static bool judge_is_destination(const int *destinations, int destination_count, int current_node_id) {
     int index;
     bool arrived_destination = false;
+    // 遍历所有的节点看自己是否是目的节点之中的一个
     for (index = 0; index < destination_count; index++) {
         if (current_node_id == destinations[index]) {
             arrived_destination = true;
@@ -44,7 +46,7 @@ static bool judge_is_destination(const int *destinations, int destination_count,
  */
 static void intermediate_process_packets(struct MulticastSessionHeader *multicast_session_header,
                                          struct PathValidationStructure *pvs, struct sk_buff *skb,
-                                         struct net *current_ns, struct SessionID* session_id) {
+                                         struct net *current_ns, struct SessionID* session_id, struct net_device* orig_dev) {
     // 0. 索引
     int index;
     // 1. 拿到目的节点的数量
@@ -58,16 +60,21 @@ static void intermediate_process_packets(struct MulticastSessionHeader *multicas
     // 4. 拿到所有的链路标识
     int *link_identifiers = (int *) get_multicast_session_setup_link_identifiers_pointer(multicast_session_header);
 
-    // 5. 进行接口的遍历
+    // 5. 根据数据包所存储的 link_identifiers 进行查找
     int inner_index;
     int interface_index = 0;
-    struct InterfaceTableEntry** output_interfaces = (struct InterfaceTableEntry**)(kmalloc(sizeof(struct InterfaceTableEntry*) * 4, GFP_KERNEL));
+
+    struct InterfaceTableEntry* output_interfaces[4];
+//    struct InterfaceTableEntry** output_interfaces = (struct InterfaceTableEntry**)(kmalloc(sizeof(struct InterfaceTableEntry*) * 4, GFP_KERNEL));
     output_interfaces[0] = NULL;
     output_interfaces[1] = NULL;
     output_interfaces[2] = NULL;
     output_interfaces[3] = NULL;
     for (index = 0; index < pvs->abit->number_of_interfaces; index++) {
         struct InterfaceTableEntry *ite_tmp = pvs->abit->interfaces[index];
+        if(ite_tmp->interface->ifindex == orig_dev->ifindex){
+            continue;
+        }
         bool forward = false;
         for (inner_index = 0; inner_index < link_identifiers_count; inner_index++) {
             if (ite_tmp->link_identifier == link_identifiers[inner_index]) {
@@ -79,11 +86,9 @@ static void intermediate_process_packets(struct MulticastSessionHeader *multicas
             output_interfaces[interface_index++] = ite_tmp;
         }
     }
-    // 进行实际路径的设置
+    // 进行实际路径的设置, 节点的记录
     actual_path[multicast_session_header->current_path_index] = pvs->node_id;
-    // 将当前的路径索引进行更新
-    multicast_session_header->current_path_index += 1;
-    multicast_session_setup_send_check(multicast_session_header);
+
 
     // 5. 创建会话表项
     char secret_value[20];
@@ -93,19 +98,45 @@ static void intermediate_process_packets(struct MulticastSessionHeader *multicas
                                                 sizeof(struct SessionID),
                                                 (unsigned char*)(secret_value),
                                                 (int)(strlen(secret_value)));
-    struct SessionTableEntry* ste = init_ste_in_intermediate_for_multicast(session_id, output_interfaces, session_key);
+
+    // 6. 创建堆上的 output_interfaces
+    struct InterfaceTableEntry** output_interfaces_at_heap = (struct InterfaceTableEntry**)(kmalloc(sizeof(struct InterfaceTableEntry*) * interface_index, GFP_KERNEL));
+
+    // 7. 初始化对上的 output_interfaces
+    for(index = 0; index < interface_index; index++){
+        output_interfaces_at_heap[index] = output_interfaces[index];
+    }
+
+    // 记录前驱的节点是什么
+    // --------------------------------------------------------------------------
+    int previous_node_id = -1;
+    for(index = 0; index < pvs->abit->number_of_interfaces; index++){
+        if(orig_dev->ifindex == pvs->abit->interfaces[index]->interface->ifindex){
+            previous_node_id = pvs->abit->interfaces[index]->target_node_id;
+            break;
+        }
+    }
+    // --------------------------------------------------------------------------
+
+    struct SessionTableEntry* ste = init_ste_in_intermediate_for_multicast(session_id, output_interfaces_at_heap, interface_index, session_key, previous_node_id);
 
     // 更新到 session_table_entry 之中
     ste->current_hop = multicast_session_header->current_path_index;
+
+    // 将当前的路径索引进行更新 (注意只有 ste->current_hop 中更新了, 才能更新)
+    multicast_session_header->current_path_index += 1;
+
+    // send check (一定要在所有的字段更新完后计算校验和)
+    multicast_session_setup_send_check(multicast_session_header);
 
     // 6. 添加会话表项
     add_entry_to_hbst(pvs->hbst, ste);
 
     // 7. 进行接口表的遍历, 并且进行数据包的转发
-    for (index = 0; index < 4; index++) {
-        if (NULL != output_interfaces[index]) {
+    for (index = 0; index < interface_index; index++) {
+        if (NULL != output_interfaces_at_heap[index]) {
             struct sk_buff *skb_cp = skb_copy(skb, GFP_KERNEL);
-            pv_packet_forward(skb_cp, output_interfaces[index], current_ns);
+            pv_packet_forward(skb_cp, output_interfaces_at_heap[index], current_ns);
         } else {
             break;
         }
@@ -117,7 +148,8 @@ static void intermediate_process_packets(struct MulticastSessionHeader *multicas
  */
 static void destination_process_packets(struct MulticastSessionHeader *multicast_session_header,
                                         struct PathValidationStructure *pvs,
-                                        struct SessionID *session_id) {
+                                        struct SessionID *session_id,
+                                        struct net_device* orig_dev) {
     // 索引
     int index;
     // 实际路径的长度
@@ -138,11 +170,25 @@ static void destination_process_packets(struct MulticastSessionHeader *multicast
                                                 sizeof(struct SessionID),
                                                 (unsigned char *) (secret_value),
                                                 (int) (strlen(secret_value)));
+
+    // 记录前驱的节点是什么
+    // --------------------------------------------------------------------------
+    int previous_node_id = -1;
+    for(index = 0; index < pvs->abit->number_of_interfaces; index++){
+        if(orig_dev->ifindex == pvs->abit->interfaces[index]->interface->ifindex){
+            previous_node_id = pvs->abit->interfaces[index]->target_node_id;
+            break;
+        }
+    }
+    // --------------------------------------------------------------------------
+
+
     // 创建会话表项
     struct SessionTableEntry *ste = init_ste_in_dest_for_multicast(session_id,
                                                                    actual_path_length,
                                                                    actual_path_length,
-                                                                   session_key);
+                                                                   session_key,
+                                                                   previous_node_id);
 
     // 进行每个节点的 session_key 的提前生成
     for (index = 0; index < actual_path_length; index++) {
@@ -164,7 +210,8 @@ static void destination_process_packets(struct MulticastSessionHeader *multicast
 }
 
 int forward_multicast_session_setup_packets(struct sk_buff *skb, struct PathValidationStructure *pvs,
-                                            struct net *current_ns) {
+                                            struct net *current_ns, struct net_device* orig_dev) {
+
     // 1. 拿到首部
     struct MulticastSessionHeader *multicast_session_header = multicast_session_hdr(skb);
     // 2. 判断是否到达了目的节点
@@ -177,9 +224,11 @@ int forward_multicast_session_setup_packets(struct sk_buff *skb, struct PathVali
             multicast_session_header));
     // 4. 目的地的处理方式
     if (arrived_destination) {
-        destination_process_packets(multicast_session_header, pvs, session_id);
+//        printk(KERN_EMERG "destination %d receive session setup packets\n", pvs->node_id);
+        destination_process_packets(multicast_session_header, pvs, session_id, orig_dev);
     } else { // 5. 非目的地的处理方式
-        intermediate_process_packets(multicast_session_header, pvs, skb, current_ns, session_id);
+//        printk(KERN_EMERG "node %d forward session setup packets\n", pvs->node_id);
+        intermediate_process_packets(multicast_session_header, pvs, skb, current_ns, session_id, orig_dev);
     }
     return NET_RX_DROP;
 }

@@ -109,7 +109,7 @@ struct sk_buff *self_defined_session_make_skb(struct sock *sk,
     cork->flags = 0;
     cork->addr = 0;
     cork->opt = NULL;
-    err = self_defined_ip_setup_cork(sk, cork, ipc, rcr);
+    err = self_defined_xx_setup_cork(sk, cork, ipc);
     if (err) {
         return ERR_PTR(err);
     }
@@ -120,7 +120,7 @@ struct sk_buff *self_defined_session_make_skb(struct sock *sk,
     err = self_defined__xx_append_data(sk, fl4, &queue, cork,
                                        &current->task_frag, getfrag,
                                        from, length, transhdrlen, flags,
-                                       rcr, session_header_size);
+                                       rcr->ite, session_header_size);
 
     if (err) {
         __ip_flush_pending_frames(sk, &queue, cork);
@@ -191,11 +191,14 @@ struct sk_buff *self_defined__session_make_skb(struct sock *sk,
     session_header->current_path_index = 0; // 当前的索引 (字段12)
     // ---------------------------------------------------------------------------------------
 
+    // struct pv_struct p = create_pv_struct(true, true, false, NULL);
+    struct pv_struct* p = get_cpu_ptr(&validation_api);
+
     // 计算 session_id -> 利用 source / link_identifiers / node_ids / timestamp
     // ---------------------------------------------------------------------------------------
     struct SessionID session_id;
     time64_t current_time_stamp = ktime_get_seconds(); // 进行当前时间的获取
-    unsigned char *hash_value = calculate_session_id(pvs->hash_api, rcr, rte,current_time_stamp); // 这里的 session_id 是 20 字节的, 实际只需要 16 字节
+    unsigned char *hash_value = calculate_session_id(p->hash_api, rcr, rte,current_time_stamp); // 这里的 session_id 是 20 字节的, 实际只需要 16 字节
     memcpy(&session_id, hash_value, SESSION_ID_LENGTH);
     kfree(hash_value);
     // ---------------------------------------------------------------------------------------
@@ -225,11 +228,12 @@ struct sk_buff *self_defined__session_make_skb(struct sock *sk,
         int index;
         char secret_value[20];
         for (index = 0; index < rte->path_length; index++) {
+            // 按照顺序取到每个节点的 id
             int node_id = rte->node_ids[index];
             // 对 session id 做一次 hmac 的到 key 使用的 key 为 key-%d
             snprintf(secret_value, sizeof(secret_value), "key-%d", node_id);
             // 计算 session_key
-            unsigned char *session_key = calculate_hmac(pvs->hmac_api,
+            unsigned char *session_key = calculate_hmac(p->hmac_api,
                                                         (unsigned char *) (&session_id),
                                                         sizeof(struct SessionID),
                                                         (unsigned char *) (secret_value),
@@ -239,6 +243,9 @@ struct sk_buff *self_defined__session_make_skb(struct sock *sk,
         }
     }
     // ------------------------------------------------------------------------------
+
+    // free_pv_struct(&p);
+    put_cpu_ptr(p);
 
     out:
     return skb;

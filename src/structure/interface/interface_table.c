@@ -43,11 +43,24 @@ void free_abit(struct ArrayBasedInterfaceTable* abit){
  * @param link_identifier 链路标识
  * @return
  */
-struct InterfaceTableEntry* find_ite_in_abit(struct ArrayBasedInterfaceTable* abit, int link_identifier){
+struct InterfaceTableEntry* find_ite_in_abit_with_link_identifier(struct ArrayBasedInterfaceTable* abit, int link_identifier){
     int index;
     struct InterfaceTableEntry* result = NULL;
     for(index = 0; index < abit->number_of_interfaces; index++){
         if(abit->interfaces[index]->link_identifier == link_identifier){
+            result = abit->interfaces[index];
+            break;
+        }
+    }
+    return result;
+}
+
+
+struct InterfaceTableEntry* find_ite_in_abit_with_ifindex(struct ArrayBasedInterfaceTable* abit, int ifindex){
+    int index;
+    struct InterfaceTableEntry* result = NULL;
+    for(index = 0; index < abit->number_of_interfaces; index++){
+        if(abit->interfaces[index]->ifindex == ifindex){
             result = abit->interfaces[index];
             break;
         }
@@ -60,11 +73,13 @@ struct InterfaceTableEntry* find_ite_in_abit(struct ArrayBasedInterfaceTable* ab
  * @param effective_bytes 总的 bf 有效字节数
  * @return
  */
-struct InterfaceTableEntry* init_ite(int index, int effective_bytes){
+struct InterfaceTableEntry* init_ite(int index, int ifindex, int effective_bytes){
     // 为 interface_table_entry 分配内存
     struct InterfaceTableEntry* ite = (struct InterfaceTableEntry*)(kmalloc(sizeof(struct InterfaceTableEntry), GFP_KERNEL));
     // 设置索引
     ite->index = index;
+    // 设置 ifindex
+    ite->ifindex = ifindex;
     // 为 bitset 分配内存
     ite->bitset = (unsigned char*)(kmalloc(effective_bytes, GFP_KERNEL));
     // 返回结果

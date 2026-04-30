@@ -8,6 +8,7 @@
 #include "structure/interface/interface_table.h"
 // 1. 路由表项
 struct RoutingTableEntry {
+    int id; // 路由表项 id (这个在进行插入的时候就进行初始化)
     int source_id;       // 源节点的 id
     int destination_id;  // 目的节点的 id
     int path_length;  // 路径的长度
@@ -17,6 +18,7 @@ struct RoutingTableEntry {
     struct InterfaceTableEntry *output_interface; // 出接口所对应的接口表项
     u32 effective_bytes; // bitset 所对应的有效的字节数
     struct hlist_node pointer; // 指针指向的是下一个路由条目
+    struct list_head list; // 用来进行链表的连接
 };
 
 // 2. 初始化源路由表项
@@ -24,5 +26,8 @@ struct RoutingTableEntry *init_routing_table_entry(int effective_bytes);
 
 // 3. 释放源路由表项
 void free_rte(struct RoutingTableEntry *source_routing_table_entry);
+
+// 4. 打印路由表项
+void print_rte(struct RoutingTableEntry* routing_table_entry);
 
 #endif //LOADABLE_KERNEL_MODULE_ROUTING_TABLE_ENTRY_H

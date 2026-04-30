@@ -59,7 +59,7 @@ int routing_entry_equal_judgement(struct RoutingTableEntry *entry, int source_id
     // 只要两个路由表项的 source 和 destination 相同即可
     if ((entry->source_id == source_id) && (entry->destination_id == destination_id)) {
         return 0;
-    } else {
+    }  else {
         return 1;
     }
 }
@@ -148,7 +148,7 @@ int free_hbrt(struct HashBasedRoutingTable *hbrt) {
  * @param destination 目的
  * @return 找到的路由表项
  */
-struct RoutingTableEntry *find_sre_in_hbrt(struct HashBasedRoutingTable *hbrt, int source, int destination) {
+struct RoutingTableEntry *find_rte_in_hbrt(struct HashBasedRoutingTable *hbrt, int source, int destination) {
     struct hlist_head *hash_bucket = NULL;
     struct RoutingTableEntry *current_entry;
     struct hlist_node *next;

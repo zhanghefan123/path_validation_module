@@ -28,6 +28,8 @@ static inline void free_selir_info(struct SELiRInfo *selir_info) {
     }
 }
 
+// 没有 MulticastSelirHeader 的原因是只要在末尾进行添加就可以了
+
 struct SELiRHeader {
 #if defined(__LITTLE_ENDIAN_BITFIELD)
     __u8 useless: 4, version: 4; // 字段1
@@ -55,7 +57,7 @@ struct SELiRPvf {
 };
 
 // selir 数据包的结构
-// data_packet header header / datahash / sessionid / timestamp / pvf_bitset / ppf_bitset /destinations
+// data_packet header header / datahash / sessionid / timestamp / pvf_bitset / ppf_bitset (注意 selir 没有 encpvf 字段)
 
 static inline struct SELiRHeader *selir_hdr(const struct sk_buff *skb) {
     return (struct SELiRHeader *) (skb_network_header(skb));

@@ -39,7 +39,7 @@ struct shash_desc* generate_hash_api(void) {
  */
 unsigned char* calculate_hash(struct shash_desc* hash_api, unsigned char* data, int length){
     // 如果 hash_output 还没有分配内存 -> 那么就进行内存的分配
-    unsigned char* hash_output = (unsigned char*) kmalloc(sizeof(unsigned char) * 20, GFP_KERNEL);
+    unsigned char* hash_output = (unsigned char*) kmalloc(sizeof(unsigned char) * 20, GFP_ATOMIC);
     if(crypto_shash_init(hash_api)){
         return NULL;
     }
@@ -63,7 +63,7 @@ unsigned char* calculate_hash(struct shash_desc* hash_api, unsigned char* data, 
  */
 unsigned char* calculate_hash_from_multiple_segments(struct shash_desc* hash_api, unsigned char** data, int* lengths, int segments){
     // 如果 hash_output 还没有分配内存 -> 那么就进行内存的分配
-    unsigned char* hash_output = (unsigned char*) kmalloc(sizeof(unsigned char) * 20, GFP_KERNEL);
+    unsigned char* hash_output = (unsigned char*) kmalloc(sizeof(unsigned char) * 20, GFP_ATOMIC);
     // 初始化
     if(crypto_shash_init(hash_api)){
         return NULL;
@@ -99,7 +99,7 @@ unsigned char* calculate_hmac(struct shash_desc* hmac_api, unsigned char* data, 
     }
 
     // 进行输出的内存的分配
-    unsigned char* hmac_output = (unsigned char*) kmalloc(sizeof(unsigned char) * 20, GFP_KERNEL);
+    unsigned char* hmac_output = (unsigned char*) kmalloc(sizeof(unsigned char) * 20, GFP_ATOMIC);
 
     // 设置密钥
     if (crypto_shash_setkey(hmac_api->tfm, key, key_length)) {
@@ -127,7 +127,7 @@ struct shash_desc* generate_hmac_api(void){
         return NULL;
     }
     // 进行内存的分配 -> 创建 shash_desc 数据结构
-    shash = kmalloc(sizeof(struct shash_desc) + crypto_shash_descsize(tfm), GFP_KERNEL);
+    shash = kmalloc(sizeof(struct shash_desc) + crypto_shash_descsize(tfm), GFP_ATOMIC);
     if (!shash) {
         printk(KERN_EMERG "Failed to allocate shash desc.\n");
         crypto_free_shash(tfm);
@@ -146,13 +146,28 @@ struct shash_desc* generate_hmac_api(void){
 void free_crypto_api(struct shash_desc* crypto_api) {
     if(NULL != crypto_api){
         if(NULL != crypto_api->tfm){
-            LOG_WITH_PREFIX("free tfm");
-            // 注意这里千万不要调用 crypto_free_shash(crypto_api->tfm);
+            crypto_free_shash(crypto_api->tfm);
+//            LOG_WITH_PREFIX("free tfm");
+            // 注意这里千万不要调用
         }
-        LOG_WITH_PREFIX("free crypto api");
+//        LOG_WITH_PREFIX("free crypto api");
         kfree(crypto_api);
     }
 }
+
+/**
+ *
+    if (shash) {
+        // 1. 获取并释放 crypto_shash (tfm)
+        // 必须在释放 shash 内存之前进行，因为 tfm 指针存储在 shash 中
+        if (shash->tfm) {
+            crypto_free_shash(shash->tfm);
+        }
+
+        // 2. 释放 shash_desc 结构体本身的内存
+        kfree(shash);
+    }
+ */
 
 /**
  * 进行 hash 和 hmac 的测试

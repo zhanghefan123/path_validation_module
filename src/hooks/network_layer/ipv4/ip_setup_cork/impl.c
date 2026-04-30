@@ -9,8 +9,9 @@
  * @param rtp 指向路由条目的指针
  * @return
  */
-int self_defined_ip_setup_cork(struct sock *sk, struct inet_cork *cork, struct ipcm_cookie *ipc, struct RoutingCalcRes* rcr) {
-    cork->fragsize = rcr->ite->interface->mtu;
+int self_defined_xx_setup_cork(struct sock *sk, struct inet_cork *cork, struct ipcm_cookie *ipc) {
+    //    cork->fragsize = rcr->ite->interface->mtu;
+    cork->fragsize = 1500;
     if (!inetdev_valid_mtu(cork->fragsize))
         return -ENETUNREACH;
     cork->gso_size = ipc->gso_size;

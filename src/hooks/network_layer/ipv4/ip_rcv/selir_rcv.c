@@ -23,7 +23,8 @@ int selir_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *p
     skb = selir_rcv_validate(skb, net);
     if (NULL == skb) {
         LOG_WITH_PREFIX("validation failed");
-        return 0;
+        kfree_skb(skb);
+        return NET_RX_DROP;
     }
     // 4. 进行实际的转发
     process_result = selir_forward_packets(skb, pvs, net, orig_dev, &encryption_elapsed_time);
@@ -294,6 +295,8 @@ int selir_forward_packets(struct sk_buff *skb, struct PathValidationStructure *p
 
     // 4. 判断是否是目的节点
     bool is_destination = ste->is_destination;
+
+    // 5. 拿到 hash api 和 hmac_api
 
     // 5. 如果是目的节点的话
     if (is_destination) {

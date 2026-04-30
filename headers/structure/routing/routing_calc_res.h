@@ -16,6 +16,7 @@ struct RoutingCalcRes {
     unsigned char *bitset; // 结果布隆过滤器
     struct InterfaceTableEntry *ite; // 出接口
     struct UserSpaceInfo *user_space_info; // 目的信息
+    int number_of_paths; // 到目的地的多路径的数量
     int number_of_routes; // 路由条目数量
     struct RoutingTableEntry **rtes; // 当为 ICING, OPT, SELIR 的时候返回的结果
 };

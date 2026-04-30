@@ -18,7 +18,8 @@ struct SessionTableEntry {
     int encrypt_len; // 所有的上游节点
     int *encrypt_order; // hmac 的次序, 在 C 节点, 顺序为 KC --> KB
     struct InterfaceTableEntry *ite; // 出接口
-    struct InterfaceTableEntry **ites; // 一堆出接口
+    struct InterfaceTableEntry **ites; // 一堆出接口 (在多播的时候使用到)
+    int number_of_interfaces; // 出接口的数量 (在多播的时候使用到)
     int previous_node; // 进行前驱节点的记录
     unsigned char **session_keys; // 前驱节点的 key, 包括自身的 key
     unsigned char *session_key; // 自己的 session_key
@@ -27,6 +28,8 @@ struct SessionTableEntry {
     struct hlist_node pointer; // 指向的是下一个节点
     bool is_destination; // 是否是目的节点
     int current_hop; // 当前的跳数
+    int illgal_pkts; // 当前 session 收到的非法的数据包数量
+    int legal_pkts; // 当前 epoch 收到的合法数据包数量
 };
 
 // 进行目的节点的共享的 session_key 的计算
@@ -40,11 +43,14 @@ unsigned char* calculate_intermediate_session_key(struct shash_desc* hmac_api, s
 struct SessionTableEntry *init_ste_in_dest_for_multicast(struct SessionID *session_id,
                                                          int encrypt_count,
                                                          int path_length,
-                                                         unsigned char *session_key);
+                                                         unsigned char *session_key,
+                                                         int previous_node_id);
 
 struct SessionTableEntry *init_ste_in_intermediate_for_multicast(struct SessionID *session_id,
                                                                  struct InterfaceTableEntry **ites,
-                                                                 unsigned char* session_key);
+                                                                 int number_of_interfaces,
+                                                                 unsigned char* session_key,
+                                                                 int previous_node_id);
 
 
 struct SessionTableEntry *init_ste_in_dest_unicast(struct SessionID *session_id,
@@ -71,6 +77,8 @@ struct HashBasedSessionTable {
     int bucket_count;
     // 哈希表
     struct hlist_head *bucket_array;
+    // 自旋锁
+    spinlock_t lock;
 };
 
 struct HashBasedSessionTable *init_hbst(int bucket_count);

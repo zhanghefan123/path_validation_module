@@ -23,25 +23,45 @@ add_executable(lkm
         src/api/netlink_router.c
         src/api/netlink_handler.c
         src/api/option_resolver.c
-
         src/structure/path_validation_sock_structure.c
-        src/structure/session/session_table.c
         src/structure/crypto/crypto_structure.c
         src/structure/crypto/bloom_filter.c
         src/structure/path_validation_structure.c
-        src/structure/interface/interface_table.c
         src/structure/namespace/namespace.c
+        src/structure/malicious/malicious_params.c
+        src/structure/routing/sec_path_mab_route.c
         src/structure/routing/user_space_info.c
+        src/structure/session/session_table.c
+        src/structure/session/epic_session_table.c
+        src/structure/interface/interface_table.c
+        src/structure/routing/hash_based_pvf_cache_table.c
         src/structure/routing/array_based_routing_table.c
+        src/structure/routing/array_based_multipath_table.c
         src/structure/routing/hash_based_routing_table.c
+        src/structure/routing/hash_based_ack_list_table.c
+        src/structure/routing/hash_based_ack_cache_table.c
+        src/structure/routing/linked_list_based_malicious_params_table.c
         src/structure/routing/routing_calc_res.c
+        src/structure/routing/multipath_res.c
         src/structure/routing/routing_table_entry.c
+        src/structure/header/atlas_header.c
+        src/structure/header/atlas_header_list.c
+        src/structure/header/atlas_segment.c
+        src/structure/header/atlas_validation_field.c
+        src/structure/header/multicast_selir_header.c
+        src/structure/header/multipath_selir_header.c
+        src/structure/header/epic_header.c
         src/structure/header/fast_selir_header.c
         src/structure/header/selir_header.c
         src/structure/header/lir_header.c
         src/structure/header/icing_header.c
         src/structure/header/opt_header.c
+        src/structure/header/sec_path_mab_header.c
+        src/structure/header/sec_path_mab_ack_header.c
+        src/structure/header/sec_path_mab_common.c
+        src/structure/header/multicast_opt_header.c
         src/structure/header/tools.c
+        src/structure/rtt_estimator/rtt_estimator.c
         src/hooks/inet_sendmsg/impl.c
         src/hooks/inet_sendmsg/hook.c
 
@@ -60,22 +80,36 @@ add_executable(lkm
         src/hooks/network_layer/ipv4/ip_send_check/impl.c
         src/hooks/network_layer/ipv4/ip_output/impl.c
         src/hooks/network_layer/ipv4/ip_rcv/fast_selir_rcv.c
+        src/hooks/network_layer/ipv4/ip_rcv/multicast_opt_rcv.c
         src/hooks/network_layer/ipv4/ip_rcv/ip_rcv.c
         src/hooks/network_layer/ipv4/ip_rcv/selir_rcv.c
         src/hooks/network_layer/ipv4/ip_rcv/lir_rcv.c
         src/hooks/network_layer/ipv4/ip_rcv/icing_rcv.c
         src/hooks/network_layer/ipv4/ip_rcv/opt_rcv.c
+        src/hooks/network_layer/ipv4/ip_rcv/sec_path_mab_rcv.c
         src/hooks/network_layer/ipv4/ip_rcv/session_rcv.c
+        src/hooks/network_layer/ipv4/ip_rcv/epic_session_rcv.c
+        src/hooks/network_layer/ipv4/ip_rcv/epic_rcv.c
+        src/hooks/network_layer/ipv4/ip_rcv/multipath_selir_rcv.c
+        src/hooks/network_layer/ipv4/ip_rcv/atlas_rcv.c
         src/hooks/network_layer/ipv4/ip_rcv/multicast_session_rcv.c
         src/hooks/network_layer/ipv4/ip_rcv/multicast_selir_rcv.c
         src/hooks/network_layer/ipv4/ip_rcv/hook.c
+        src/hooks/network_layer/ipv4/ip_rcv/sec_path_mab_ack_rcv.c
         src/hooks/network_layer/ipv4/ip_append_data/impl.c
+        src/hooks/network_layer/ipv4/ip_make_skb/multipath_selir_make_skb.c
+        src/hooks/network_layer/ipv4/ip_make_skb/atlas_make_skb.c
         src/hooks/network_layer/ipv4/ip_make_skb/lir_make_skb.c
         src/hooks/network_layer/ipv4/ip_make_skb/icing_make_skb.c
+        src/hooks/network_layer/ipv4/ip_make_skb/epic_make_skb.c
         src/hooks/network_layer/ipv4/ip_make_skb/opt_make_skb.c
+        src/hooks/network_layer/ipv4/ip_make_skb/sec_path_mab_make_skb.c
+        src/hooks/network_layer/ipv4/ip_make_skb/sec_path_mab_ack_make_skb.c
+        src/hooks/network_layer/ipv4/ip_make_skb/multicast_opt_make_skb.c
         src/hooks/network_layer/ipv4/ip_make_skb/selir_make_skb.c
-        src/hooks/network_layer/ipv4/ip_make_skb/selir_fast_make_skb.c
+        src/hooks/network_layer/ipv4/ip_make_skb/fast_selir_make_skb.c
         src/hooks/network_layer/ipv4/ip_make_skb/session_make_skb.c
+        src/hooks/network_layer/ipv4/ip_make_skb/epic_session_make_skb.c
         src/hooks/network_layer/ipv4/ip_make_skb/multicast_session_make_skb.c
         src/hooks/network_layer/ipv4/ip_make_skb/multicast_selir_make_skb.c
         src/hooks/network_layer/ipv4/ip_send_skb/impl.c
@@ -95,19 +129,19 @@ add_executable(lkm
 
 # 北航服务器的 内核头文件路径
 # -----------------------------------------------------------------
-#set(HEADERS_DIR
-#        /usr/src/linux-hwe-5.19-headers-5.19.0-41/include
-#        /usr/src/linux-hwe-5.19-headers-5.19.0-41/arch/x86/include
-#        headers)
+set(HEADERS_DIR
+        /usr/src/linux-hwe-5.19-headers-5.19.0-41/include
+        /usr/src/linux-hwe-5.19-headers-5.19.0-41/arch/x86/include
+        headers)
 # -----------------------------------------------------------------
 
 # 树莓派的 内核头文件路径
 # -----------------------------------------------------------------
-set(HEADERS_DIR
-    /usr/src/linux-headers-5.19.17/include
-    /usr/src/linux-headers-5.19.17/arch/arm64/include
-    headers
-)
+#set(HEADERS_DIR
+#    /usr/src/linux-headers-5.19.17/include
+#    /usr/src/linux-headers-5.19.17/arch/arm64/include
+#    headers
+#)
 # -----------------------------------------------------------------
 
 # CLion IDE will find symbols from <linux/*>

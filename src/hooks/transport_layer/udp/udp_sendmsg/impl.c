@@ -50,9 +50,10 @@ bool resolve_udp_sendmsg_inner_functions(void) {
 int self_defined_udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len) {
     // 起始时间
     u64 start_time = ktime_get_real_ns();
-    u64 encryption_time_elapsed = 0;
-    u64 enc_start_time;
-    u64 enc_time_elapsed;
+    u64 make_skb_time_elapsed = 0;
+    u64 turn_time_elapsed = 0;
+    u64 integrate_time_elapsed = 0;
+    u64 enc_time_elapsed = 0;
     struct inet_sock *inet = inet_sk(sk);
     struct udp_sock *up = udp_sk(sk);
     DECLARE_SOCKADDR(struct sockaddr_in *, usin, msg->msg_name);
@@ -74,7 +75,9 @@ int self_defined_udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len) {
     // zhf add variables
     // -----------------------------------------------------
     // 1. 路由计算结果
-    struct RoutingCalcRes *rcr;
+    struct RoutingCalcRes *rcr = NULL;
+    struct EpicSessionTableEntry *este = NULL;
+    struct MultipathRes * mres = NULL;
     // 2. 网络命名空间
     struct net *current_ns;
     // 3. 路径验证数据结构
@@ -101,9 +104,30 @@ int self_defined_udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len) {
 
     // zhf add new code -- search route
     // -----------------------------------------------------
-    rcr = construct_rcr_with_user_space_info(pvs, dest_and_proto_info, source);
-    if (NULL == rcr) {
-        return -EINVAL;
+    if (EPIC_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
+        // 1. 对于 epic 是进行会话表的查找
+        este = find_este_in_hbest(pvs->hbest, source, dest_and_proto_info->destinations[0]);
+        if (NULL == este) {
+            return -EINVAL;
+        }
+    } else if ((ATLAS_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) || (MULTIPATH_SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol)){
+        // 2. 对于 atlas 是进行 array_based_multipath_table 的查找
+        mres = construct_mres(pvs, dest_and_proto_info->destinations[0], dest_and_proto_info->path_validation_protocol);
+        if (NULL == mres){
+            return -EINVAL;
+        }
+    } else if((SEC_PATH_MAB_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol)){
+        // 3. 对于 sec_path_mab 来说判断 mab_route 是否存在即可
+        if (NULL == pvs->sec_path_mab_settings->selected_route){
+            return -EINVAL;
+        }
+    }
+    else {
+        // 3.对于其他的所有都是查找路由表
+        rcr = construct_rcr_with_user_space_info(pvs, dest_and_proto_info, source);
+        if (NULL == rcr) {
+            return -EINVAL;
+        }
     }
     // -----------------------------------------------------
 
@@ -269,7 +293,15 @@ int self_defined_udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len) {
 
     // 路由计算完成后，知道源地址是什么了, 就进行源地址的更新
     // ----------------------------------------------------------------------------
-    saddr = rcr->ite->interface->ip_ptr->ifa_list->ifa_address;
+    if (NULL != rcr) {
+        saddr = rcr->ite->interface->ip_ptr->ifa_list->ifa_address;
+    } else if (NULL != este){
+        saddr = este->meta.ite->interface->ip_ptr->ifa_list->ifa_address;
+    } else if(NULL != pvs->sec_path_mab_settings->selected_route){
+        saddr = pvs->sec_path_mab_settings->selected_route->ite->interface->ip_ptr->ifa_list->ifa_address;
+    } else {
+        saddr = mres->ite->interface->ip_ptr->ifa_list->ifa_address;
+    }
     fl4->saddr = saddr;
     // ----------------------------------------------------------------------------
 
@@ -293,7 +325,29 @@ int self_defined_udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len) {
         } else if (ICING_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
             skb = self_defined_icing_make_skb(sk, fl4, getfrag, msg, ulen,
                                               sizeof(struct udphdr), &ipc,
-                                              &cork, msg->msg_flags, rcr, &encryption_time_elapsed);
+                                              &cork, msg->msg_flags, rcr, &make_skb_time_elapsed, &enc_time_elapsed);
+        } else if (EPIC_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
+            skb = self_defined_epic_make_skb(sk, fl4, getfrag, msg, ulen,
+                                             sizeof(struct udphdr), &ipc,
+                                             &cork, msg->msg_flags, este, &make_skb_time_elapsed, &enc_time_elapsed);
+        } else if (EPIC_SESSION_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
+            skb = self_defined_epic_session_make_skb(sk, fl4, getfrag, msg, ulen,
+                                                     sizeof(struct udphdr), &ipc,
+                                                     &cork, msg->msg_flags, rcr);
+        } else if (ATLAS_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol){
+            skb = self_defined_atlas_make_skb(sk, fl4, getfrag, msg, ulen,
+                                              sizeof(struct udphdr), &ipc,
+                                              &cork, msg->msg_flags, mres, &make_skb_time_elapsed,
+                                              &turn_time_elapsed, &integrate_time_elapsed);
+        } else if (MULTIPATH_SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol){
+            skb = self_defined_multipath_selir_make_skb(sk, fl4, getfrag, msg, ulen,
+                                                        sizeof(struct udphdr), &ipc,
+                                                        &cork, msg->msg_flags, mres, &make_skb_time_elapsed, &enc_time_elapsed);
+        } else if (SEC_PATH_MAB_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol){
+            skb = self_defined_sec_path_make_skb(sk, fl4, getfrag, msg, ulen,
+                                                 sizeof(struct udphdr), &ipc,
+                                                 &cork, msg->msg_flags,
+                                                 pvs->sec_path_mab_settings->selected_route);
         } else {
             if (NULL == sk->path_validation_sock_structure) {
                 sent_first_packet = false;
@@ -304,26 +358,23 @@ int self_defined_udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len) {
                 if (OPT_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
                     skb = self_defined_opt_make_skb(sk, fl4, getfrag, msg, ulen,
                                                     sizeof(struct udphdr), &ipc,
-                                                    &cork, msg->msg_flags, rcr, &encryption_time_elapsed);
+                                                    &cork, msg->msg_flags, rcr, &make_skb_time_elapsed, &enc_time_elapsed);
                 } else if (SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
-//                    unsigned char* memory = (unsigned char*)(kmalloc(sizeof(unsigned char) * 4, GFP_KERNEL));
-//                    u64 start_hweight32 = ktime_get_real_ns();
-//                    for(index = 0; index < 8; index++){
-//                        int result = hweight32(*((u32*)memory));
-//                    }
-//                    printk(KERN_EMERG "time elapsed: %llu\n", ktime_get_real_ns() - start_time);
                     skb = self_defined_selir_make_skb(sk, fl4, getfrag, msg, ulen,
                                                       sizeof(struct udphdr), &ipc,
-                                                      &cork, msg->msg_flags, rcr, &encryption_time_elapsed);
-//                    kfree(memory);
+                                                      &cork, msg->msg_flags, rcr, &make_skb_time_elapsed);
                 } else if (FAST_SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
                     skb = self_defined_fast_selir_make_skb(sk, fl4, getfrag, msg, ulen,
                                                            sizeof(struct udphdr), &ipc,
-                                                           &cork, msg->msg_flags, rcr, &encryption_time_elapsed);
-                } else if(MULTICAST_SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol){
+                                                           &cork, msg->msg_flags, rcr, &make_skb_time_elapsed, &enc_time_elapsed);
+                } else if (MULTICAST_SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
                     skb = self_defined_multicast_selir_make_skb(sk, fl4, getfrag, msg, ulen,
                                                                 sizeof(struct udphdr), &ipc,
-                                                                &cork, msg->msg_flags, rcr);
+                                                                &cork, msg->msg_flags, rcr, &make_skb_time_elapsed);
+                } else if (MULTICAST_OPT_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol){
+                    skb = self_defined_multicast_opt_make_skb(sk, fl4, getfrag, msg, ulen,
+                                                              sizeof(struct udphdr), &ipc,
+                                                                      &cork, msg->msg_flags, rcr, &make_skb_time_elapsed);
                 } else {
                     LOG_WITH_PREFIX("unsupported protocol");
                     return -EINVAL;
@@ -349,7 +400,7 @@ int self_defined_udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len) {
             // 当 skb_copy 的时候并不会进行 skb->sk 的拷贝
             // 这里可能是真正的阻塞的原因
             err = self_defined_udp_send_skb(skb, fl4,
-                                            &cork, rcr,
+                                            &cork, rcr, este, mres, pvs->sec_path_mab_settings->selected_route,
                                             dest_and_proto_info->path_validation_protocol);
         }
         // ------------------------------------------------------------------------------
@@ -363,23 +414,30 @@ int self_defined_udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len) {
     // 进行处理时间的打印
     // ----------------------------------------------------------------------------
     u64 time_elapsed = ktime_get_real_ns() - start_time;
-    if (sent_first_packet) {
-        if (ICING_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
-//            printk(KERN_EMERG "icing source sendmsg time elapsed: %llu ns\n", time_elapsed);
-//            printk(KERN_EMERG "icing source encryption time elapsed: %llu ns\n", encryption_time_elapsed);
-        } else if (OPT_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
-//            printk(KERN_EMERG "opt source sendmsg time elapsed: %llu ns\n", time_elapsed);
-//            printk(KERN_EMERG "opt source encryption time elapsed: %llu ns\n", encryption_time_elapsed);
-        } else if (SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
-//            printk(KERN_EMERG "selir source sendmsg time elapsed: %llu ns\n", time_elapsed);
-//            printk(KERN_EMERG "selir source encryption time elapsed: %llu ns\n", encryption_time_elapsed);
-        } else if (FAST_SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
-//            printk(KERN_EMERG "fast selir source sendmsg time elapsed: %llu ns\n", time_elapsed);
-//            printk(KERN_EMERG "fast selir source encryption time elapsed: %llu ns\n", encryption_time_elapsed);
-        } else if(MULTICAST_SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol){
-//            printk(KERN_EMERG "multicast selir source sendmsg time elapsed: %llu ns\n", time_elapsed);
-        }
-    }
+//    if (sent_first_packet) {
+//        if (ICING_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
+////            printk(KERN_EMERG "icing source make skb time: %llu ns | enc time elapsed: %llu ns\n", make_skb_time_elapsed, enc_time_elapsed);
+//        } else if (OPT_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
+////            printk(KERN_EMERG "opt source make skb time: %llu ns | enc time elapsed: %llu ns\n", make_skb_time_elapsed, enc_time_elapsed);
+//        } else if (SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
+////            printk(KERN_EMERG "selir source sendmsg time elapsed: %llu ns\n", time_elapsed);
+////            printk(KERN_EMERG "selir source encryption time elapsed: %llu ns\n", make_skb_time_elapsed);
+//        } else if (FAST_SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
+////            printk(KERN_EMERG "fast selir source make skb time: %llu ns | enc time elapsed: %llu ns\n", make_skb_time_elapsed, enc_time_elapsed);
+//        } else if (EPIC_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol){
+//            // printk(KERN_EMERG "epic source make skb time: %llu ns | enc time elapsed: %llu ns\n", make_skb_time_elapsed, enc_time_elapsed);
+//        } else if (MULTICAST_SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol) {
+////              printk(KERN_EMERG "multicast lip source make skb time: %llu ns\n", make_skb_time_elapsed);
+//        } else if (MULTICAST_OPT_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol){
+////            printk(KERN_EMERG "multicast opt source make skb time: %llu ns\n", make_skb_time_elapsed);
+//        } else if (MULTIPATH_SELIR_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol){
+////              printk(KERN_EMERG "multipath selir make skb time: %llu ns | enc time elapsed: %llu ns\n",
+////                     make_skb_time_elapsed, enc_time_elapsed);
+//        } else if (ATLAS_VERSION_NUMBER == dest_and_proto_info->path_validation_protocol){
+////              printk(KERN_EMERG "atlas source make skb time: %llu ns | turn time elapsed: %llu ns | integrate time elapsed: %llu ns\n",
+////                     make_skb_time_elapsed, turn_time_elapsed, integrate_time_elapsed);
+//        }
+//    }
     // ----------------------------------------------------------------------------
 
 
@@ -387,7 +445,11 @@ int self_defined_udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len) {
     if (free)
         kfree(ipc.opt);
     if (!err) {
+        // 释放 atlas 路由表项
+        free_mres(mres);
+        // 释放查找的路由表项
         free_rcr(rcr);
+        // 释放用户空间信息
         free_user_space_info(dest_and_proto_info);
         return (int) len;
     }

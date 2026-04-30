@@ -7,6 +7,11 @@
 #include "structure/header/fast_selir_header.h"
 #include "hooks/network_layer/ipv4/ip_output/ip_output.h"
 #include "structure/header/multicast_session_header.h"
+#include "structure/header/atlas_header.h"
+#include "structure/header/multipath_selir_header.h"
+#include "structure/header/multicast_selir_header.h"
+#include "structure/header/multicast_opt_header.h"
+#include "structure/header/sec_path_mab_header.h"
 
 /**
  * 进行 udp 层的定义
@@ -19,6 +24,9 @@ int self_defined_udp_send_skb(struct sk_buff *skb,
                               struct flowi4 *fl4,
                               struct inet_cork *cork,
                               struct RoutingCalcRes *rcr,
+                              struct EpicSessionTableEntry* este,
+                              struct MultipathRes* mres,
+                              struct SecPathMabRoute* sec_path_mab_route,
                               int validation_protocol) {
     struct sock *sk = skb->sk;
     struct inet_sock *inet = inet_sk(sk);
@@ -50,11 +58,31 @@ int self_defined_udp_send_skb(struct sk_buff *skb,
     } else if (FAST_SELIR_VERSION_NUMBER == validation_protocol){
         struct FastSELiRHeader* fast_selir_header = fast_selir_hdr(skb);
         source_identification = fast_selir_header->source;
-    } else if (MULTICAST_SELIR_VERSION_NUMBER == validation_protocol){
+    } else if (MULTICAST_SESSION_SETUP_VERSION_NUMBER == validation_protocol){
         struct MulticastSessionHeader* multicast_session_header = multicast_session_hdr(skb);
         source_identification = multicast_session_header->source;
-    }
-    else {
+    } else if (MULTICAST_SELIR_VERSION_NUMBER == validation_protocol){
+        struct MulticastSelirHeader* multicast_selir_header = multicast_selir_hdr(skb);
+        source_identification = multicast_selir_header->source;
+    } else if (MULTICAST_OPT_VERSION_NUMBER == validation_protocol){
+        struct MulticastOptHeader* multicast_opt_header = multicast_opt_hdr(skb);
+        source_identification = multicast_opt_header->source;
+    } else if (EPIC_SESSION_VERSION_NUMBER == validation_protocol) {
+        struct EpicSessionHeader * epic_session_header = epic_session_hdr(skb);
+        source_identification = epic_session_header->source;
+    } else if(EPIC_VERSION_NUMBER == validation_protocol) {
+        struct EpicHeader* epic_header = epic_hdr(skb);
+        source_identification = epic_header->source;
+    } else if (ATLAS_VERSION_NUMBER == validation_protocol){
+        struct AtlasHeader* atlas_header = atlas_hdr(skb);
+        source_identification = atlas_header->source;
+    } else if (MULTIPATH_SELIR_VERSION_NUMBER == validation_protocol){
+        struct MultipathSELiRHeader* multipath_selir_header = multipath_selir_hdr(skb);
+        source_identification = multipath_selir_header->source;
+    } else if (SEC_PATH_MAB_VERSION_NUMBER == validation_protocol){
+        struct SecPathMabHeader* sec_path_mab_header = sec_path_mab_hdr(skb);
+        source_identification = sec_path_mab_header->source;
+    } else {
         LOG_WITH_PREFIX("current not supported protocol");
     }
 
@@ -121,11 +149,24 @@ int self_defined_udp_send_skb(struct sk_buff *skb,
     // 进行数据的发送
     send:
     // -------------------------------------------------------------
-    struct net_device *dev = rcr->ite->interface;
+    struct InterfaceTableEntry* ite = NULL;
+    // 如果是 epic 那么 rcr 将为 NULL
+    if (NULL != rcr){
+        ite = rcr->ite;
+    } else if (NULL != este){
+        ite = este->meta.ite;
+    } else if(NULL != mres){
+        ite = mres->ite;
+    } else if(NULL != sec_path_mab_route){
+        ite = sec_path_mab_route->ite;
+    } else {
+        printk(KERN_EMERG "udp send skb get ite failed\n");
+        return -EINVAL;
+    }
     IP_UPD_PO_STATS(sock_net(sk), IPSTATS_MIB_OUT, skb->len);
-    skb->dev = dev;
+    skb->dev = ite->interface;
     skb->protocol = htons(ETH_P_IP);
-    err = pv_finish_output2(sock_net(sk), sk, skb, rcr->ite);
+    err = pv_finish_output2(sock_net(sk), sk, skb, ite);
     // -------------------------------------------------------------
     if (err) {
         if (err == -ENOBUFS && !inet->recverr) {

@@ -179,11 +179,9 @@ static void initialize_opvs(struct shash_desc *hmac_api,
  */
 static void fill_data_packet_fields(struct OptHeader *opt_header,
                                     struct RoutingTableEntry *rte,
-                                    struct PathValidationStructure *pvs,
-                                    struct PathValidationSockStructure *pvss) {
-    // 1. 拿到 hash_api 和 hmac_api
-    struct shash_desc *hash_api = pvs->hash_api;
-    struct shash_desc *hmac_api = pvs->hmac_api;
+                                    struct PathValidationSockStructure *pvss,
+                                    struct shash_desc* hash_api,
+                                    struct shash_desc* hmac_api) {
     // 2. 首先计算哈希
     unsigned char *static_fields_hash = calculate_opt_hash(hash_api, opt_header);
     // 3. 为 [1] data hash [2] session_id [3] timestamp 进行赋值
@@ -229,7 +227,10 @@ struct sk_buff *self_defined_opt_make_skb(struct sock *sk,
                                                       int len, int odd, struct sk_buff *skb),
                                           void *from, int length, int transhdrlen,
                                           struct ipcm_cookie *ipc,
-                                          struct inet_cork *cork, unsigned int flags, struct RoutingCalcRes *rcr, u64* encryption_time_elapsed) {
+                                          struct inet_cork *cork, unsigned int flags, struct RoutingCalcRes *rcr,
+                                          u64* make_skb_time_elapsed,
+                                          u64* enc_time_elapsed) {
+    u64 start_make_skb_time = ktime_get_real_ns();
     struct sk_buff_head queue;
     int err;
 
@@ -241,7 +242,7 @@ struct sk_buff *self_defined_opt_make_skb(struct sock *sk,
     cork->flags = 0;
     cork->addr = 0;
     cork->opt = NULL;
-    err = self_defined_ip_setup_cork(sk, cork, ipc, rcr);
+    err = self_defined_xx_setup_cork(sk, cork, ipc);
     if (err) {
         return ERR_PTR(err);
     }
@@ -252,14 +253,17 @@ struct sk_buff *self_defined_opt_make_skb(struct sock *sk,
     err = self_defined__xx_append_data(sk, fl4, &queue, cork,
                                        &current->task_frag, getfrag,
                                        from, length, transhdrlen, flags,
-                                       rcr, opt_header_size);
+                                       rcr->ite,
+                                       opt_header_size);
 
     if (err) {
         __ip_flush_pending_frames(sk, &queue, cork);
         return ERR_PTR(err);
     }
 
-    return self_defined__opt_make_skb(sk, fl4, &queue, cork, rcr, encryption_time_elapsed);
+    struct sk_buff* result = self_defined__opt_make_skb(sk, fl4, &queue, cork, rcr, enc_time_elapsed);
+    *make_skb_time_elapsed = ktime_get_real_ns() - start_make_skb_time;
+    return result;
 }
 
 struct sk_buff *self_defined__opt_make_skb(struct sock *sk,
@@ -267,7 +271,7 @@ struct sk_buff *self_defined__opt_make_skb(struct sock *sk,
                                            struct sk_buff_head *queue,
                                            struct inet_cork *cork,
                                            struct RoutingCalcRes *rcr,
-                                           u64* encryption_time_elapsed) {
+                                           u64* enc_time_elapsed) {
     struct sk_buff *skb, *tmp_skb;
     struct sk_buff **tail_skb;
     struct inet_sock *inet = inet_sk(sk);
@@ -308,7 +312,7 @@ struct sk_buff *self_defined__opt_make_skb(struct sock *sk,
     // 头部基本部分填充
     // ---------------------------------------------------------------------------------------
     opt_header = opt_hdr(skb);
-    opt_header->version = OPT_DATA_VERSION_NUMBER; // 版本 (字段1)
+    opt_header->version = OPT_VERSION_NUMBER; // 版本 (字段1)
     opt_header->tos = (cork->tos != -1) ? cork->tos : inet->tos; // tos type_of_service (字段2)
     opt_header->ttl = ttl; // ttl (字段3)
     opt_header->protocol = sk->sk_protocol; // 上层协议 (字段4)
@@ -322,20 +326,28 @@ struct sk_buff *self_defined__opt_make_skb(struct sock *sk,
     opt_header->current_path_index = 0; // 当前的索引 (字段12)
     // ---------------------------------------------------------------------------------------
 
+
+    u64 start_enc_time = ktime_get_real_ns();
+    // 拿到 hash_api 和 hmac_api
+    struct pv_struct* p = get_cpu_ptr(&validation_api);
+
     // 直接从 sock 之中所包村的 path_validation_sock_structure 之中拿到 session_id
     // ---------------------------------------------------------------------------------------
     struct SessionID session_id;
     session_id = ((struct PathValidationSockStructure *) (sk->path_validation_sock_structure))->session_id; // 从 socket 之中直接拿到 session_id
     // ---------------------------------------------------------------------------------------
 
+    // 拿出  sk 之中缓存的内容
+    struct PathValidationSockStructure *pvss = (struct PathValidationSockStructure *) (sk->path_validation_sock_structure);
+
+
     // 头部后续部分初始化
     // ---------------------------------------------------------------------------------------
-    // 拿到 path_validation_sock_structure
-//    u64 start = ktime_get_real_ns();
-    struct PathValidationSockStructure *pvss = (struct PathValidationSockStructure *) (sk->path_validation_sock_structure);
-    fill_data_packet_fields(opt_header, rcr->rtes[0], pvs, pvss);
-//    *encryption_time_elapsed = ktime_get_real_ns() - start;
+    fill_data_packet_fields(opt_header, rcr->rtes[0], pvss, p->hash_api, p->hmac_api);
     // ---------------------------------------------------------------------------------------
+
+    put_cpu_ptr(p);
+    *enc_time_elapsed = ktime_get_real_ns() - start_enc_time;
 
     // 等待一切就绪后计算 check
     opt_send_check(opt_header);

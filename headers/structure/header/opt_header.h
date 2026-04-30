@@ -1,18 +1,20 @@
 //
 // Created by 张贺凡 on 2024/12/9.
 //
+#ifndef PATH_VALIDATION_MODULE_OPT_HEADER_H
+#define PATH_VALIDATION_MODULE_OPT_HEADER_H
+
 #include <net/ip.h>
 #include "structure/crypto/crypto_structure.h"
 #include "structure/header/common_part.h"
 
-#ifndef PATH_VALIDATION_MODULE_OPT_HEADER_H
-#define PATH_VALIDATION_MODULE_OPT_HEADER_H
+
 // 定义 SESSION_ID 部分的长度
+#define TIMESTAMP_LENGTH 8
 #define SESSION_ID_LENGTH 16
 #define HASH_LENGTH 16
 #define PVF_LENGTH 16
 #define ENC_PVF_LENGTH 16
-#define PVF_HASH_LENGTH 32
 #define OPV_LENGTH 16
 
 // first packet 包含的部分
@@ -62,6 +64,13 @@ struct OptPvf {
 // OPT OPV
 struct OptOpv {
     char data[16];
+};
+
+// OPT METADATA
+struct OptMetaData{
+    struct DataHash opt_data_hash;
+    struct SessionID session_id;
+    struct TimeStamp timestamp;
 };
 
 // 从 skb 之中获取 opt_header

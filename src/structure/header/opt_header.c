@@ -25,7 +25,7 @@ void PRINT_OPT_HEADER(struct OptHeader* opt_header){
     printk(KERN_EMERG "check: %d\n", opt_header->check);
     printk(KERN_EMERG "current_path_index: %d\n", opt_header->current_path_index);
     // 2. 判断版本类型
-    if(OPT_DATA_VERSION_NUMBER == opt_header->version){
+    if(OPT_VERSION_NUMBER == opt_header->version){
         LOG_WITH_PREFIX("current not support opt data"); // not option data
     } else {
         LOG_WITH_PREFIX("unsupported opt header");

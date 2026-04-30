@@ -30,14 +30,14 @@ unsigned char *calculate_intermediate_session_key(struct shash_desc *hmac_api,
 
 struct SessionTableEntry *
 init_ste_in_dest_for_multicast(struct SessionID *session_id, int encrypt_count, int path_length,
-                               unsigned char *session_key) {
+                               unsigned char *session_key, int previous_node_id) {
     struct SessionTableEntry *ste = (struct SessionTableEntry *) kmalloc(sizeof(struct SessionTableEntry), GFP_KERNEL);
     ste->session_id.first_part = session_id->first_part;
     ste->session_id.second_part = session_id->second_part;
     ste->encrypt_len = encrypt_count;
     ste->encrypt_order = (int *) (kmalloc(sizeof(int) * encrypt_count, GFP_KERNEL));
     ste->ite = NULL;
-    ste->previous_node = -1;
+    ste->previous_node = previous_node_id;
     ste->session_keys = (unsigned char **) (kmalloc(sizeof(unsigned char *) * encrypt_count, GFP_KERNEL));
     ste->path_length = path_length;
     ste->session_hops = NULL;
@@ -49,14 +49,17 @@ init_ste_in_dest_for_multicast(struct SessionID *session_id, int encrypt_count, 
 
 struct SessionTableEntry *init_ste_in_intermediate_for_multicast(struct SessionID *session_id,
                                                                  struct InterfaceTableEntry **ites,
-                                                                 unsigned char *session_key) {
+                                                                 int number_of_interfaces,
+                                                                 unsigned char *session_key,
+                                                                 int previous_node_id) {
     struct SessionTableEntry *ste = (struct SessionTableEntry *) kmalloc(sizeof(struct SessionTableEntry), GFP_KERNEL);
     ste->session_id.first_part = session_id->first_part;
     ste->session_id.second_part = session_id->second_part;
     ste->encrypt_len = 0;
     ste->encrypt_order = NULL;
     ste->ites = ites;
-    ste->previous_node = -1;
+    ste->number_of_interfaces = number_of_interfaces;
+    ste->previous_node = previous_node_id;
     ste->session_keys = NULL;
     ste->session_key = session_key;
     ste->is_destination = false;
@@ -87,6 +90,9 @@ struct SessionTableEntry *init_ste_in_dest_unicast(struct SessionID *session_id,
     ste->session_hops = (struct SessionHop *) (kmalloc(sizeof(struct SessionHop) * path_length, GFP_KERNEL));
     ste->session_key = session_key;
     ste->is_destination = true;
+    ste->current_hop = 0;
+    ste->illgal_pkts = 0;
+    ste->legal_pkts = 0;
     return ste;
 }
 
@@ -106,6 +112,9 @@ struct SessionTableEntry *init_ste_in_intermediate_unicast(struct SessionID *ses
     ste->session_keys = NULL;
     ste->session_key = session_key;
     ste->is_destination = false;
+    ste->current_hop = 0;
+    ste->illgal_pkts = 0;
+    ste->legal_pkts = 0;
     return ste;
 }
 
@@ -143,6 +152,8 @@ struct HashBasedSessionTable *init_hbst(int bucket_count) {
                                                                                   GFP_KERNEL);
     hbst->bucket_count = bucket_count;
     hbst->bucket_array = head_pointer_list;
+    // 初始化自旋锁
+    spin_lock_init(&(hbst->lock));
     return hbst;
 }
 
@@ -228,6 +239,9 @@ int add_entry_to_hbst(struct HashBasedSessionTable *hbst, struct SessionTableEnt
     struct hlist_head *hash_bucket = NULL;
     struct SessionTableEntry *current_ste = NULL;
     struct hlist_node *next = NULL;
+    // 获取锁（自旋锁或互斥锁，取决于上下文）
+    spin_lock(&hbst->lock);  // 或 mutex_lock
+
     // 首先找到对应的应该存放的 bucket
     hash_bucket = get_bucket_in_hbst(hbst, ste->session_id);
     if (NULL == hash_bucket) {
@@ -241,11 +255,15 @@ int add_entry_to_hbst(struct HashBasedSessionTable *hbst, struct SessionTableEnt
         if (0 == session_entry_equal_judgement(current_ste, ste->session_id)) {
             LOG_WITH_PREFIX("already exists session entry");
             free_ste(ste);
+            spin_unlock(&hbst->lock);
+            return 0;
         }
     }
     // 这个时候说明我们真的需要创建一个自己的 node
     INIT_HLIST_NODE(&ste->pointer);
     hlist_add_head(&ste->pointer, hash_bucket);
+    spin_unlock(&hbst->lock);
+
     return 0;
 }
 

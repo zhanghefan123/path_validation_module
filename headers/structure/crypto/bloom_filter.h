@@ -15,6 +15,8 @@ struct BloomFilter {
     u32 bf_effective_bytes; // the effective bytes in bloom filter, it should be calculated while in the bloom filter params setting
 };
 
+struct BloomFilter* init_bloom_filter_with_no_bitset(u32 effective_bits, u32 hash_seed, u32 number_of_hash_functions);
+
 struct BloomFilter* init_bloom_filter(u32 effective_bits, u32 hash_seed, u32 number_of_hash_functions); // 进行布隆过滤器的初始化
 
 struct BloomFilter* copy_bloom_filter(struct BloomFilter* bloom_filter); // 进行布隆过滤器的拷贝

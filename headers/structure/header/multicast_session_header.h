@@ -37,7 +37,7 @@ static inline struct MulticastSessionHeader *multicast_session_hdr(const struct 
     return (struct MulticastSessionHeader *) skb_network_header(skb);
 }
 
-// 获取数据包的每一个字段
+// 获取数据包的每一个字段 sessionid | 所有的 link_identifiers | 实际路径的记录
 // ------------------------------------------------------------------------------------------------------------
 static inline unsigned char *
 get_multicast_session_setup_session_id_pointer(struct MulticastSessionHeader *session_setup_header) {

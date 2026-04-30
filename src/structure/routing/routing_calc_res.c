@@ -105,6 +105,11 @@ struct RoutingCalcRes *construct_rcr_with_user_space_info_under_abrt(struct Path
         // 2. 因为
         // 创建 rcr
         struct RoutingCalcRes *rcr = init_rcr(source, user_space_info, bitset_length,user_space_info->path_validation_protocol);
+        // atlas 的 rcr 需要单独处理
+        if(ATLAS_VERSION_NUMBER == user_space_info->path_validation_protocol){
+            // rtes 之中不用进行初始化
+            return rcr;
+        }
         // 只允许单个目的节点
         struct RoutingTableEntry *rte = find_rte_in_abrt(abrt, user_space_info->destinations[0]);
         if (NULL == rte) {
@@ -112,7 +117,7 @@ struct RoutingCalcRes *construct_rcr_with_user_space_info_under_abrt(struct Path
             return NULL;
         } else {
             // 设置出接口
-            // LOG_WITH_PREFIX("find route");
+            LOG_WITH_PREFIX("find route");
             rcr->ite = rte->output_interface;
             if (NULL == rte->output_interface){
                 LOG_WITH_PREFIX("output interface is null");
@@ -134,11 +139,14 @@ struct RoutingCalcRes *construct_rcr_with_user_space_info_under_abrt(struct Path
                 pvs->bloom_filter->bitset = old_bit_set;
             }
         } else if (ICING_VERSION_NUMBER == user_space_info->path_validation_protocol) {
+            LOG_WITH_PREFIX("find ICING ROUTE");
             rcr->rtes[0] = rte;  // 因为要进行后续的
         } else if (OPT_VERSION_NUMBER == user_space_info->path_validation_protocol) {
             rcr->rtes[0] = rte;
         } else if ((SELIR_VERSION_NUMBER == user_space_info->path_validation_protocol) ||
                    (FAST_SELIR_VERSION_NUMBER == user_space_info->path_validation_protocol)) {
+            rcr->rtes[0] = rte;
+        } else if (EPIC_SESSION_VERSION_NUMBER == user_space_info->path_validation_protocol) {
             rcr->rtes[0] = rte;
         } else {
             LOG_WITH_PREFIX("unsupported protocol");
@@ -173,7 +181,7 @@ struct RoutingCalcRes *construct_rcr_with_dest_info_under_hbrt(struct PathValida
         // 首先找到主节点
         int primaryNodeId = user_space_info->destinations[0];
         // 找到到主节点的路由
-        struct RoutingTableEntry *source_to_primary = find_sre_in_hbrt(hbrt, source, primaryNodeId);
+        struct RoutingTableEntry *source_to_primary = find_rte_in_hbrt(hbrt, source, primaryNodeId);
         // 更新出接口和 bitset
         rcr->ite = source_to_primary->output_interface;
         if(NULL != rcr->ite){
@@ -197,7 +205,7 @@ struct RoutingCalcRes *construct_rcr_with_dest_info_under_hbrt(struct PathValida
         // 接着找到主节点到其他节点的路由
         for (index = 1; index < user_space_info->number_of_destinations; index++) {
             int otherNodeId = user_space_info->destinations[index];
-            struct RoutingTableEntry *primary_to_other = find_sre_in_hbrt(hbrt,
+            struct RoutingTableEntry *primary_to_other = find_rte_in_hbrt(hbrt,
                                                                           primaryNodeId,
                                                                           otherNodeId);
             // 进行 bitset 的更新
@@ -209,17 +217,27 @@ struct RoutingCalcRes *construct_rcr_with_dest_info_under_hbrt(struct PathValida
             return NULL;
         } else {
             int destination = user_space_info->destinations[0];
-            struct RoutingTableEntry *rte = find_sre_in_hbrt(hbrt, source, destination);
+            struct RoutingTableEntry *rte = find_rte_in_hbrt(hbrt, source, destination);
             rcr->rtes[0] = rte;
             rcr->ite = rte->output_interface;
         }
-    } else if (OPT_VERSION_NUMBER == user_space_info->path_validation_protocol) {
+    } else if ((SEC_PATH_MAB_VERSION_NUMBER == user_space_info->path_validation_protocol)){ // SEC PATH MAB 被选择的时候
         if (1 != user_space_info->number_of_destinations) {
             LOG_WITH_PREFIX("opt only support unicast");
             return NULL;
         } else {
             int destination = user_space_info->destinations[0];
-            struct RoutingTableEntry *rte = find_sre_in_hbrt(hbrt, source, destination);
+            struct RoutingTableEntry *rte = find_rte_in_hbrt(hbrt, source, destination);
+            rcr->rtes[0] = rte;
+            rcr->ite = rte->output_interface;
+        }
+    } else if ((OPT_VERSION_NUMBER == user_space_info->path_validation_protocol)) {
+        if (1 != user_space_info->number_of_destinations) {
+            LOG_WITH_PREFIX("opt only support unicast");
+            return NULL;
+        } else {
+            int destination = user_space_info->destinations[0];
+            struct RoutingTableEntry *rte = find_rte_in_hbrt(hbrt, source, destination);
             rcr->rtes[0] = rte;
             rcr->ite = rte->output_interface;
         }
@@ -227,7 +245,7 @@ struct RoutingCalcRes *construct_rcr_with_dest_info_under_hbrt(struct PathValida
         // 拿到唯一的目的节点
         int only_destination = user_space_info->destinations[0];
         // 进行路由表的查找
-        struct RoutingTableEntry *only_route = find_sre_in_hbrt(hbrt, source, only_destination);
+        struct RoutingTableEntry *only_route = find_rte_in_hbrt(hbrt, source, only_destination);
         // 更新出接口
         rcr->ite = only_route->output_interface;
         // 添加路由
@@ -236,16 +254,16 @@ struct RoutingCalcRes *construct_rcr_with_dest_info_under_hbrt(struct PathValida
         // 拿到唯一的目的节点
         int only_destination = user_space_info->destinations[0];
         // 进行路由表的查找
-        struct RoutingTableEntry *only_route = find_sre_in_hbrt(hbrt, source, only_destination);
+        struct RoutingTableEntry *only_route = find_rte_in_hbrt(hbrt, source, only_destination);
         // 更新出接口
         rcr->ite = only_route->output_interface;
         // 添加路由
         rcr->rtes[0] = only_route;
-    } else if (MULTICAST_SELIR_VERSION_NUMBER == user_space_info->path_validation_protocol) {
+    } else if ((MULTICAST_SELIR_VERSION_NUMBER == user_space_info->path_validation_protocol) || (MULTICAST_OPT_VERSION_NUMBER == user_space_info->path_validation_protocol)) {
         // 首先找到主节点
         int primaryNodeId = user_space_info->destinations[0];
         // 找到到主节点的路由
-        struct RoutingTableEntry *source_to_primary = find_sre_in_hbrt(hbrt, source, primaryNodeId);
+        struct RoutingTableEntry *source_to_primary = find_rte_in_hbrt(hbrt, source, primaryNodeId);
         // 更新出接口
         rcr->ite = source_to_primary->output_interface;
         // 进行路由条目的更新
@@ -253,12 +271,22 @@ struct RoutingCalcRes *construct_rcr_with_dest_info_under_hbrt(struct PathValida
         // 利用到主节点的路由形成
         for (index = 1; index < user_space_info->number_of_destinations; index++) {
             int otherNodeId = user_space_info->destinations[index];
-            struct RoutingTableEntry *primary_to_other = find_sre_in_hbrt(hbrt,
+            struct RoutingTableEntry *primary_to_other = find_rte_in_hbrt(hbrt,
                                                                           primaryNodeId,
                                                                           otherNodeId);
             // 进行路由条目的更新
             rcr->rtes[index] = primary_to_other;
         }
+    }
+    else if(EPIC_SESSION_VERSION_NUMBER == user_space_info->path_validation_protocol){
+        // 拿到唯一的目的节点
+        int only_destination = user_space_info->destinations[0];
+        // 进行路由表的查找
+        struct RoutingTableEntry *only_route = find_rte_in_hbrt(hbrt, source, only_destination);
+        // 更新出接口
+        rcr->ite = only_route->output_interface;
+        // 添加路由
+        rcr->rtes[0] = only_route;
     } else {
         LOG_WITH_PREFIX("unsupported protocol");
     }

@@ -28,7 +28,7 @@ int add_entry_to_hbrt(struct HashBasedRoutingTable *hbrt, struct RoutingTableEnt
 
 int free_hbrt(struct HashBasedRoutingTable *hbrt);
 
-struct RoutingTableEntry *find_sre_in_hbrt(struct HashBasedRoutingTable *hbrt, int source, int destination);
+struct RoutingTableEntry *find_rte_in_hbrt(struct HashBasedRoutingTable *hbrt, int source, int destination);
 
 
 

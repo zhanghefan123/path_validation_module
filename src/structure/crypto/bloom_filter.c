@@ -35,6 +35,28 @@ struct BloomFilter *init_bloom_filter(u32 effective_bits, u32 hash_seed, u32 num
     return created_bloom_filter;
 }
 
+
+struct BloomFilter* init_bloom_filter_with_no_bitset(u32 effective_bits, u32 hash_seed, u32 number_of_hash_functions){
+    // 进行内存的分配
+    struct BloomFilter *created_bloom_filter = (struct BloomFilter *) kmalloc(sizeof(struct BloomFilter), GFP_KERNEL);
+    // 设置 u32 个数
+    created_bloom_filter->aligned_u32_count = 0x0;
+    // 设置 effective_bits
+    created_bloom_filter->bf_effective_bits = effective_bits;
+    // 设置掩码
+    created_bloom_filter->bitset_mask = effective_bits - 1;
+    // 设置 effective_bytes
+    created_bloom_filter->bf_effective_bytes = (effective_bits + BITS_PER_BYTE - 1) / BITS_PER_BYTE;
+    // 设置 bit set
+    created_bloom_filter->bitset = NULL;
+    // 设置哈希种子
+    created_bloom_filter->hash_seed = hash_seed;
+    // 设置哈希函数个数
+    created_bloom_filter->number_of_hash_functions = number_of_hash_functions;
+    // 返回创建好的布隆过滤器
+    return created_bloom_filter;
+}
+
 /**
  * 进行布隆过滤器的克隆，返回新的布隆过滤器
  * @param old_bloom_filter 想要进行克隆的布隆过滤器
@@ -78,7 +100,7 @@ void delete_bloom_filter(struct BloomFilter *bf) {
             bf->bitset = NULL;
         }
         kfree(bf);
-        LOG_WITH_PREFIX("delete bloom filter");
+        // LOG_WITH_PREFIX("delete bloom filter");
     } else {
         LOG_WITH_PREFIX("bloom filter is NULL");
     }

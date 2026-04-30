@@ -53,7 +53,7 @@ struct sk_buff *self_defined_lir_make_skb(struct sock *sk,
     cork->flags = 0;
     cork->addr = 0;
     cork->opt = NULL;
-    err = self_defined_ip_setup_cork(sk, cork, ipc, rcr);
+    err = self_defined_xx_setup_cork(sk, cork, ipc);
     if (err) {
         return ERR_PTR(err);
     }
@@ -63,7 +63,7 @@ struct sk_buff *self_defined_lir_make_skb(struct sock *sk,
     err = self_defined__xx_append_data(sk, fl4, &queue, cork,
                                        &current->task_frag, getfrag,
                                        from, length, transhdrlen, flags,
-                                       rcr, lir_header_size);
+                                       rcr->ite, lir_header_size);
 
     if (err) {
         __ip_flush_pending_frames(sk, &queue, cork);

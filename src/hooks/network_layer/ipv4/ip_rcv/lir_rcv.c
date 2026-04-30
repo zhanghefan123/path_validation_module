@@ -10,6 +10,36 @@
 #include <net/inet_ecn.h>
 #include <linux/inetdevice.h>
 
+
+//int lir_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev) {
+//    // 1. 初始化变量
+//    struct net *net = dev_net(dev);
+//    struct LiRHeader *lir_header = lir_hdr(skb);
+//    struct PathValidationStructure *pvs = get_pvs_from_ns(net);
+//    int process_result;
+//    // 2. 进行初级的校验
+//    skb = lir_rcv_validate(skb, net);
+//    if (NULL == skb) {
+//        LOG_WITH_PREFIX("validation failed");
+//        return 0;
+//    }
+//    // 3. 进行实际的转发
+//    process_result = lir_forward_packets(skb, pvs, net, orig_dev);
+//    // 4. 判断是否需要向上层提交或者释放
+//    if (NET_RX_SUCCESS == process_result) {
+//        // 4.1 进行本地的接收
+//        __be32 receive_interface_address = orig_dev->ip_ptr->ifa_list->ifa_address;
+//        pv_local_deliver(skb, lir_header->protocol,
+//                         receive_interface_address);
+//        return 0;
+//    } else {
+//        // 4.2 不进行任何的操作 (说明原始数据包被转发走了)
+//        return 0;
+//    }
+//}
+
+
+
 int lir_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev) {
     // 1. 初始化变量
     u64 start_time = ktime_get_real_ns();
@@ -24,7 +54,8 @@ int lir_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt,
     skb = lir_rcv_validate(skb, net);
     if (NULL == skb) {
         LOG_WITH_PREFIX("validation failed");
-        return 0;
+        kfree_skb(skb);
+        return NET_RX_DROP;
     }
     // 4. 进行实际的转发
     process_result = lir_forward_packets(skb, pvs, net, orig_dev);
@@ -137,7 +168,7 @@ int lir_forward_packets(struct sk_buff *skb, struct PathValidationStructure *pvs
         if (pvs->routing_table_type == ARRAY_BASED_ROUTING_TABLE_TYPE){
             rte = find_rte_in_abrt(pvs->abrt, first_destination);
         } else if(pvs->routing_table_type == HASH_BASED_ROUTING_TABLE_TYPE) {
-            rte = find_sre_in_hbrt(pvs->hbrt, first_destination, pvs->node_id);
+            rte = find_rte_in_hbrt(pvs->hbrt, first_destination, pvs->node_id);
         }
         if (NULL != rte) {
             // 进行布隆过滤器的重置并将新的链路标识进行嵌入

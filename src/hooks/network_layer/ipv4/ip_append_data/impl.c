@@ -4,6 +4,7 @@
 #include "structure/header/lir_header.h"
 #include "structure/namespace/namespace.h"
 
+
 char *ip_local_error_str = "ip_local_error";
 asmlinkage void (*orig_ip_local_error)(struct sock *sk, int err, __be32 daddr, __be16 dport, u32 info);
 
@@ -25,34 +26,6 @@ bool resolve_ip_append_data_inner_functions_address(void) {
     LOG_WITH_EDGE("end to resolve ip_append_data inner functions address");
     return resolve_result;
 }
-
-// 原本在 udp_sendmsg 之中进行过调用, 后续被删除了
-/*
-int self_defined_ip_append_data(struct sock *sk, struct flowi4 *fl4,
-                                int getfrag(void *from, char *to, int offset, int len,
-                                            int odd, struct sk_buff *skb),
-                                void *from, int length, int transhdrlen,
-                                struct ipcm_cookie *ipc, struct rtable **rtp,
-                                unsigned int flags) {
-    struct inet_sock *inet = inet_sk(sk);
-    int err;
-
-    if (flags & MSG_PROBE)
-        return 0;
-
-    if (skb_queue_empty(&sk->sk_write_queue)) {
-        err = self_defined_ip_setup_cork(sk, &inet->cork.base, ipc, rtp);
-        if (err)
-            return err;
-    } else {
-        transhdrlen = 0;
-    }
-
-    return self_defined__ip_append_data(sk, fl4, &sk->sk_write_queue, &inet->cork.base,
-                                        sk_page_frag(sk), getfrag,
-                                        from, length, transhdrlen, flags);
-}
-*/
 
 /**
  *
@@ -79,7 +52,7 @@ int self_defined__xx_append_data(struct sock *sk,
                                              int len, int odd, struct sk_buff *skb),
                                  void *from, int app_and_transport_len, int transport_hdr_len,
                                  unsigned int flags,
-                                 struct RoutingCalcRes* rcr,
+                                 struct InterfaceTableEntry* ite,
                                  int header_size) {
     // zhf add code 获取 path validation structure
     // -----------------------------------
@@ -108,7 +81,7 @@ int self_defined__xx_append_data(struct sock *sk,
         sk->sk_tsflags & SOF_TIMESTAMPING_OPT_ID)
         tskey = atomic_inc_return(&sk->sk_tskey) - 1;
 
-    hh_len = LL_RESERVED_SPACE(rcr->ite->interface);
+    hh_len = LL_RESERVED_SPACE(ite->interface);
 
     // zhf add code 进行路径长度的获取
     // -----------------------------------------------------------
@@ -133,9 +106,9 @@ int self_defined__xx_append_data(struct sock *sk,
      */
     if (transport_hdr_len &&
         app_and_transport_len + fragheaderlen <= mtu &&
-        rcr->ite->interface->features & (NETIF_F_HW_CSUM | NETIF_F_IP_CSUM) &&
+        ite->interface->features & (NETIF_F_HW_CSUM | NETIF_F_IP_CSUM) &&
         (!(flags & MSG_MORE) || cork->gso_size) &&
-        ((rcr->ite->interface->features & NETIF_F_HW_ESP_TX_CSUM)))
+        ((ite->interface->features & NETIF_F_HW_ESP_TX_CSUM)))
         csummode = CHECKSUM_PARTIAL;
 
     // 这段代码是Linux内核网络栈中处理零拷贝（zero-copy）发送的一部分。
@@ -151,7 +124,7 @@ int self_defined__xx_append_data(struct sock *sk,
         if (!uarg)
             return -ENOBUFS;
         extra_uref = !skb_zcopy(skb);    /* only ref on new uarg */
-        if (rcr->ite->interface->features & NETIF_F_SG &&
+        if (ite->interface->features & NETIF_F_SG &&
             csummode == CHECKSUM_PARTIAL) {
             paged = true;
         } else {
@@ -221,11 +194,11 @@ int self_defined__xx_append_data(struct sock *sk,
                 alloc_extra += 0; // rt.dst.trailer_len
 
             if ((flags & MSG_MORE) &&
-                !(rcr->ite->interface->features & NETIF_F_SG))
+                !(ite->interface->features & NETIF_F_SG))
                 alloclen = mtu;
             else if (!paged &&
                      (fraglen + alloc_extra < SKB_MAX_ALLOC ||
-                      !(rcr->ite->interface->features & NETIF_F_SG)))
+                      !(ite->interface->features & NETIF_F_SG)))
                 alloclen = fraglen;
             else {
                 alloclen = min_t(int, fraglen, MAX_HEADER);
@@ -312,7 +285,7 @@ int self_defined__xx_append_data(struct sock *sk,
         if (copy > app_and_transport_len)
             copy = app_and_transport_len;
 
-        if (!(rcr->ite->interface->features & NETIF_F_SG) &&
+        if (!(ite->interface->features & NETIF_F_SG) &&
             skb_tailroom(skb) >= copy) {
             unsigned int off;
 

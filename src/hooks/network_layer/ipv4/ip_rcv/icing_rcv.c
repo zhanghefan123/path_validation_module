@@ -9,33 +9,25 @@
 #include <linux/inetdevice.h>
 #include <net/sch_generic.h>
 
-int icing_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev) {
-    // 0. 初始时间
-    u64 start_time = ktime_get_real_ns();
-    u64 encryption_elapsed_time = 0;
+int icing_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev, u64* intermediate_verification_time_elapsed, u64* destination_verification_time_elapsed) {
     // 1. 初始化变量
     struct net *net = dev_net(dev);
     struct PathValidationStructure *pvs = get_pvs_from_ns(net);
-    bool if_log_time = false;
     struct ICINGHeader *icing_header = icing_hdr(skb);
     int process_result;
     // 2. 进行初级的校验
     skb = icing_rcv_validate(skb, net);
+    if (NULL == skb){
+        kfree_skb(skb);
+        return NET_RX_DROP;
+    }
     // 3. 进行实际的转发
-    process_result = icing_forward_packets(skb, pvs, net, orig_dev, &encryption_elapsed_time);
+    process_result = icing_forward_packets(skb, pvs, net, orig_dev, intermediate_verification_time_elapsed, destination_verification_time_elapsed);
     // 4. 判断是进行本地交付还是直接丢弃
     if (NET_RX_SUCCESS == process_result) {
         __be32 receive_interface_address = orig_dev->ip_ptr->ifa_list->ifa_address;
         pv_local_deliver(skb, icing_header->protocol,
                          receive_interface_address);
-        if_log_time = true;
-    } else {
-        kfree_skb_reason(skb, SKB_DROP_REASON_BPF_CGROUP_EGRESS);
-    }
-    // 5. 经过的时间
-    if(if_log_time){
-        printk(KERN_EMERG "icing destination forward time elapsed = %llu ns\n", ktime_get_real_ns() - start_time);
-//        printk(KERN_EMERG "icing destination encryption time elapsed = %llu ns\n", encryption_elapsed_time);
     }
     return 0;
 }
@@ -159,15 +151,14 @@ struct sk_buff *icing_rcv_validate(struct sk_buff *skb, struct net *net) {
     return NULL;
 }
 
-static bool proof_verification(struct ICINGHeader *icing_header, struct PathValidationStructure *pvs) {
+static bool proof_verification(struct ICINGHeader *icing_header, struct PathValidationStructure *pvs, struct shash_desc* hash_api, struct shash_desc* hmac_api) {
+
     // 1. 变量定义
     bool result;
     int index;
     int current_node_id = pvs->node_id;
     int current_path_index = icing_header->current_path_index;
     int source = icing_header->source;
-    struct shash_desc *hash_api = pvs->hash_api;
-    struct shash_desc *hmac_api = pvs->hmac_api;
     struct ICINGHop *path = (struct ICINGHop *) (get_icing_path_start_pointer(icing_header));
     struct ICINGProof *proof_list = (struct ICINGProof *) (get_icing_proof_start_pointer(icing_header));
     // 2.计算哈希
@@ -176,7 +167,7 @@ static bool proof_verification(struct ICINGHeader *icing_header, struct PathVali
     char key[20];
     // 首先进行 ai 的计算
     snprintf(key, sizeof(key), "poc-%d", pvs->node_id);
-    unsigned char *ai_result = calculate_hmac(pvs->hmac_api,
+    unsigned char *ai_result = calculate_hmac(hmac_api,
                                               static_fields_hash,
                                               HASH_OUTPUT_LENGTH,
                                               (unsigned char *) key,
@@ -220,13 +211,13 @@ static bool proof_verification(struct ICINGHeader *icing_header, struct PathVali
     return result;
 }
 
-static void proof_update(struct ICINGHeader *icing_header, struct PathValidationStructure *pvs) {
+static void proof_update(struct ICINGHeader *icing_header, struct PathValidationStructure *pvs, struct shash_desc* hash_api, struct shash_desc* hmac_api) {
     // 索引
     int index;
-    // 获取 hash api
-    struct shash_desc *hash_api = pvs->hash_api;
-    // 获取 hmac_api
-    struct shash_desc *hmac_api = pvs->hmac_api;
+//    // 获取 hash api
+//    struct shash_desc *hash_api = pvs->hash_api;
+//    // 获取 hmac_api
+//    struct shash_desc *hmac_api = pvs->hmac_api;
     // 当前路径索引
     int current_path_index = icing_header->current_path_index;
     // 当前节点 id
@@ -256,51 +247,68 @@ static void proof_update(struct ICINGHeader *icing_header, struct PathValidation
 }
 
 int icing_forward_packets(struct sk_buff *skb, struct PathValidationStructure *pvs, struct net *current_ns,
-                          struct net_device *in_dev, u64* encryption_time_elapsed) {
+                          struct net_device *in_dev, u64* intermediate_verification_time_elapsed,  u64* destination_verification_time_elapsed) {
+
     // 初始化变量
     int index;
     int result = NET_RX_DROP;
-    bool verification_result;
+    bool verification_result = false;
     int current_node_id = pvs->node_id;
     struct ICINGHeader *icing_header = icing_hdr(skb);
     int destination = icing_header->dest;
     struct ICINGHop *path = (struct ICINGHop *) get_icing_path_start_pointer(icing_header);
     int current_path_index = icing_header->current_path_index;
     int current_link_identifier = path[current_path_index].link_id;
+    bool is_destination = current_node_id == destination;
 
+
+    // 创建新的 hash hmac
+    // -----------------------------------------------
+//    struct pv_struct p = create_pv_struct(true, true, false, NULL);
+    struct pv_struct* p = get_cpu_ptr(&validation_api);
+    // -----------------------------------------------
     // u64 start_time = ktime_get_real_ns();
     // 进行上游节点是否正确转发的校验
-    verification_result = proof_verification(icing_header, pvs);
-    if (verification_result) {
-        if (current_node_id == destination) {
+    if(is_destination){
+        u64 start_verification_time = ktime_get_real_ns();
+        verification_result = proof_verification(icing_header, pvs, p->hash_api, p->hmac_api);
+        if(verification_result){
             result = NET_RX_SUCCESS;
-            // *encryption_time_elapsed = ktime_get_real_ns() - start_time;
-            return result;
+        } else {
+            kfree_skb_reason(skb, SKB_DROP_REASON_NOT_SPECIFIED);
+            result = NET_RX_DROP;
         }
+        *destination_verification_time_elapsed = ktime_get_real_ns() - start_verification_time;
     } else {
-        LOG_WITH_PREFIX("verification failed");
-        // 当校验失败之后, 直接返回
-        return result;
-    }
-    // 进行凭证的更新
-    proof_update(icing_header, pvs);
-    // 进行时间的更新
-    // *encryption_time_elapsed = ktime_get_real_ns() - start_time;
+        u64 start_verification_time = ktime_get_real_ns();
+        verification_result = proof_verification(icing_header, pvs, p->hash_api, p->hmac_api);
 
-
-    // 进行 current_path_index 的更新
-    icing_header->current_path_index += 1;
-    // 计算校验和
-    icing_send_check(icing_header);
-    // 更新完成之后遍历接口表准备进行数据包的发送
-    for (index = 0; index < pvs->abit->number_of_interfaces; index++) {
-        struct InterfaceTableEntry *ite = pvs->abit->interfaces[index];
-        if (current_link_identifier == ite->link_identifier) {
-            // 进行拷贝
-            struct sk_buff *skb_copied = skb_copy(skb, GFP_KERNEL);
-            // 进行转发
-            pv_packet_forward(skb_copied, ite, current_ns);
+        if(verification_result){
+            result = NET_RX_DROP;
+            // 进行凭证的更新
+            proof_update(icing_header, pvs, p->hash_api, p->hmac_api);
+            *intermediate_verification_time_elapsed = ktime_get_real_ns() - start_verification_time;
+            // 进行 current_path_index 的更新
+            icing_header->current_path_index += 1;
+            // 计算校验和
+            icing_send_check(icing_header);
+            // 更新完成之后遍历接口表准备进行数据包的发送
+            for (index = 0; index < pvs->abit->number_of_interfaces; index++) {
+                struct InterfaceTableEntry *ite = pvs->abit->interfaces[index];
+                if (current_link_identifier == ite->link_identifier) {
+                    // 进行转发
+                    pv_packet_forward(skb, ite, current_ns);
+                }
+            }
+        } else {
+            kfree_skb_reason(skb, SKB_DROP_REASON_NOT_SPECIFIED);
+            result = NET_RX_DROP;
         }
+
     }
+
+//    free_pv_struct(&p);
+    put_cpu_ptr(p);
+
     return result;
 }

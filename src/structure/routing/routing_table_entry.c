@@ -37,3 +37,11 @@ void free_rte(struct RoutingTableEntry *source_routing_table_entry) {
         source_routing_table_entry = NULL;
     }
 }
+
+void print_rte(struct RoutingTableEntry* routing_table_entry){
+    int index;
+    for (index = 0; index < routing_table_entry->path_length; index++){
+        printk(KERN_EMERG "node: %d\n", routing_table_entry->node_ids[index]);
+        printk(KERN_EMERG "link: %d\n", routing_table_entry->link_identifiers[index]);
+    }
+}

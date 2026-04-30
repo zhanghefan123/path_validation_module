@@ -138,7 +138,7 @@ void print_memory_in_hex(unsigned char* output, int length){
     printk(KERN_CONT "RESULT ");
     for (i = 0; i < length; i++)
         printk(KERN_CONT "%02x", output[i]);
-    printk(KERN_CONT "\n");
+    printk(KERN_EMERG "\n"); // 不然可能不会进行输出
 }
 
 /**
@@ -147,10 +147,10 @@ void print_memory_in_hex(unsigned char* output, int length){
  * @param target 内存的目的
  * @param length 长度
  */
-void memory_or(unsigned char* source, unsigned char* target, int length){
+void memory_or(unsigned char* target, unsigned char* source, int length){
     int index;
     for(index = 0; index < length; index++){
-        source[index] = source[index] | target[index];
+        target[index] = target[index] | source[index];
     }
 }
 
@@ -161,7 +161,7 @@ void memory_or(unsigned char* source, unsigned char* target, int length){
  * @param target
  * @param length
  */
-void memory_xor(unsigned char* target, const unsigned char* source, int length){
+void memory_xor(unsigned char* target, unsigned char* source, int length){
     int index;
     for(index = 0; index < length; index++){
         target[index] = target[index] ^ source[index];
@@ -186,4 +186,159 @@ bool memory_compare(const unsigned char* first, const unsigned char* second, int
         }
     }
     return same;
+}
+
+bool memory_compare_ints(const int* first, const int * second, int length){
+    int index;
+    bool same = true;
+    for(index = 0; index < length; index++){
+        if(first[index] != second[index]){
+            same = false;
+            break;
+        }
+    }
+    return same;
+}
+
+bool corrupt_decision(int start_scaled, int end_scaled) {
+    const uint32_t MAX_SCALE = 1000000;
+
+    // 1. 获取 0 ~ MAX_SCALE 的随机数
+    // 注意：在 Linux v6.1+ 中推荐使用 get_random_u32_below()
+    // 如果你的内核版本较老（例如 5.x），请替换为：prandom_u32_max(MAX_SCALE + 1)
+    uint32_t r1 = prandom_u32_max(MAX_SCALE + 1);
+    uint32_t r2 = prandom_u32_max(MAX_SCALE + 1);
+
+    // 2. 计算差值（有符号 64 位，防止递减丢包率时下溢出）
+    int64_t diff = (int64_t)end_scaled - (int64_t)start_scaled;
+
+    // 3. 安全的内核态 64 位除法
+    // 绝对不能直接写 (diff * r1) / MAX_SCALE，必须使用内核提供的 div_s64 宏
+    int32_t offset = (int32_t)div_s64(diff * r1, MAX_SCALE);
+
+    uint32_t current_rate = start_scaled + offset;
+
+    // 4. 丢包判断
+    return r2 < current_rate;
+}
+
+void test_corrupt(void){
+    int start = 100000;
+    int end   = 200000;
+    int total = 1000000;
+    int count = 0;
+    int index;
+    uint32_t pct_x100; // 放大 100 倍的百分比，例如 123 表示 1.23%
+
+    printk(KERN_EMERG "==== TEST START 1%% END 5%%====\n");
+    for (index = 0; index < total; index++) {
+        if (corrupt_decision(start, end)) {
+            count++;
+        }
+    }
+
+    // 计算百分比并放大 100 倍以保留两位小数 (count / total * 100 * 100)
+    // 相当于计算 (count * 10000) / total
+    // 强制转型为 uint64_t 防止 count * 10000 溢出 32 位
+    pct_x100 = div_u64((uint64_t)count * 10000, total);
+
+    // 打印时，手动拆解出整数部分和两位小数部分
+    printk(KERN_EMERG "result: %u.%02u%%\n", pct_x100 / 100, pct_x100 % 100);
+
+    // -------------- 下一轮测试 --------------
+    start = 50000;
+    end   = 50000;
+    count = 0;
+
+    printk(KERN_EMERG "==== TEST START 5%% END 5%%====\n");
+    for (index = 0; index < total; index++) {
+        if (corrupt_decision(start, end)) {
+            count++;
+        }
+    }
+
+    pct_x100 = div_u64((uint64_t)count * 10000, total);
+    printk(KERN_EMERG "result: %u.%02u%%\n", pct_x100 / 100, pct_x100 % 100);
+}
+
+u64 ktime_get_us(void){
+    ktime_t now = ktime_get();
+    u64 now_us = ktime_to_us(now);
+    return now_us;
+}
+
+
+int uniform_sample_index(unsigned int number_of_sample_nodes)
+{
+    unsigned int rand_val;
+    unsigned int index;
+
+    // 边界保护：数组长度不能小于 1
+    if (number_of_sample_nodes < 1)
+        return 0;
+
+    // 内核安全获取 32 位无符号随机数
+    get_random_bytes(&rand_val, sizeof(rand_val));
+
+    // 核心：均匀映射到 [0, a-1]（取模实现均匀抽样）
+    index = rand_val % number_of_sample_nodes;
+
+    return (int)(index);
+}
+
+void test_uniform_sample_index(void){
+    int i;
+    unsigned int idx;
+    unsigned int arr_len;
+    unsigned int *count_arr;  // Array to count occurrences of each index
+
+    /* ===================== Test 1: Boundary Cases ===================== */
+    pr_info("\n======== Test 1: Boundary Conditions ========\n");
+
+    // Test array length = 0 (invalid) → should return 0
+    idx = uniform_sample_index(0);
+    pr_info("Array length 0 → index: %u (expected: 0)\n", idx);
+
+    // Test array length = 1 (only valid index is 0)
+    idx = uniform_sample_index(1);
+    pr_info("Array length 1 → index: %u (expected: 0)\n", idx);
+
+    /* ===================== Test 2: Index Validity ===================== */
+    pr_info("\n======== Test 2: Index Validity Check ========\n");
+    arr_len = 15;  // Indices must be in [0, 14]
+    for (i = 0; i < 1000; i++) {
+        idx = uniform_sample_index(arr_len);
+        if (idx >= arr_len) {
+            pr_err("ERROR: Invalid index %u (array length %u)\n", idx, arr_len);
+            return;
+        }
+    }
+    pr_info("1000 samples: All indices are valid in [0, %u]\n", arr_len - 1);
+
+    /* ===================== Test 3: Uniformity Test ===================== */
+    pr_info("\n======== Test 3: Uniformity Statistics ========\n");
+    arr_len = 10;  // Test with array length 10 (indices 0~9)
+
+    // Allocate and zero-initialize memory for counting
+    count_arr = kzalloc(arr_len * sizeof(unsigned int), GFP_KERNEL);
+    if (!count_arr) {
+        pr_err("Memory allocation failed\n");
+        return;
+    }
+
+    // Generate samples and count occurrences
+    for (i = 0; i < TEST_SAMPLE_COUNT; i++) {
+        idx = uniform_sample_index(arr_len);
+        count_arr[idx]++;
+    }
+
+    // Print test results
+    pr_info("Array length: %u | Total samples: %d\n", arr_len, TEST_SAMPLE_COUNT);
+    for (i = 0; i < arr_len; i++) {
+        pr_info("index %2u : %5u occurrences\n", i, count_arr[i]);
+    }
+
+    // Clean up allocated memory
+    kfree(count_arr);
+    pr_info("\n======== All Tests Completed ========\n");
 }

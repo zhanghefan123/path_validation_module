@@ -22,4 +22,5 @@ struct TimeStamp {
     char data[8];
 };
 
+
 #endif //PATH_VALIDATION_MODULE_COMMON_PART_H

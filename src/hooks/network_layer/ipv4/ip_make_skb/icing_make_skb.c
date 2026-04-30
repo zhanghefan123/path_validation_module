@@ -86,8 +86,8 @@ static void fill_icing_expire(struct ICINGHeader *icing_header, struct RoutingTa
  * 功能: 进行 icing 验证字段的填充
  */
 static void fill_icing_validation(struct ICINGHeader *icing_header, struct RoutingTableEntry *rte,
-                                  struct PathValidationStructure *pvs, u64* encryption_time_elapsed) {
-    u64 start_time = ktime_get_real_ns();
+                                  struct PathValidationStructure *pvs,
+                                  struct shash_desc* hash_api, struct shash_desc* hmac_api) {
     // 索引
     int index;
     // 当前节点 id
@@ -99,20 +99,20 @@ static void fill_icing_validation(struct ICINGHeader *icing_header, struct Routi
     // 进行路径部分内存分配以及填充
     // -------------------------------------------------------------------------------------
     // 1. 先进行静态哈希的计算
-    unsigned char *static_fields_hash = calculate_icing_hash(pvs->hash_api, icing_header);
+    unsigned char *static_fields_hash = calculate_icing_hash(hash_api, icing_header);
     unsigned char *hmac_result = NULL;
     unsigned char *ai_result = NULL;
     struct ICINGProof *proof_list = (struct ICINGProof *) (validation_start_pointer);
 
     // 2. 进行 ai 的计算
-    char key[20];
+    char key[20] = {0};
     for (index = 0; index < path_length; index++) {
         // 拿到中间节点的 id
         int on_path_node_id = rte->node_ids[index];
         // 获取 proof
         snprintf(key, sizeof(key), "poc-%d", on_path_node_id);
         // 准备计算 Ai
-        ai_result = calculate_hmac(pvs->hmac_api,
+        ai_result = calculate_hmac(hmac_api,
                                    static_fields_hash,
                                    HASH_OUTPUT_LENGTH,
                                    (unsigned char *) key,
@@ -132,7 +132,7 @@ static void fill_icing_validation(struct ICINGHeader *icing_header, struct Routi
         int on_path_node_id = rte->node_ids[index];
         snprintf(key, sizeof(key), "key-%d-%d", current_node_id, on_path_node_id);
         // 准备计算 hmac
-        hmac_result = calculate_hmac(pvs->hmac_api,
+        hmac_result = calculate_hmac(hmac_api,
                                      static_fields_hash,
                                      HASH_OUTPUT_LENGTH,
                                      (unsigned char *) key,
@@ -153,7 +153,6 @@ static void fill_icing_validation(struct ICINGHeader *icing_header, struct Routi
         kfree(static_fields_hash);
     }
     // -------------------------------------------------------------------------------------
-    *encryption_time_elapsed = ktime_get_real_ns() - start_time;
 }
 
 struct sk_buff *self_defined_icing_make_skb(struct sock *sk,
@@ -162,7 +161,9 @@ struct sk_buff *self_defined_icing_make_skb(struct sock *sk,
                                                         int len, int odd, struct sk_buff *skb),
                                             void *from, int length, int transhdrlen,
                                             struct ipcm_cookie *ipc,
-                                            struct inet_cork *cork, unsigned int flags, struct RoutingCalcRes *rcr, u64 *encryption_time_elapsed) {
+                                            struct inet_cork *cork, unsigned int flags, struct RoutingCalcRes *rcr,
+                                            u64 *make_skb_time_elapsed, u64* enc_time_elapsed) {
+    u64 start_make_skb_time = ktime_get_real_ns();
     struct sk_buff_head queue;
     int err;
 
@@ -174,7 +175,7 @@ struct sk_buff *self_defined_icing_make_skb(struct sock *sk,
     cork->flags = 0;
     cork->addr = 0;
     cork->opt = NULL;
-    err = self_defined_ip_setup_cork(sk, cork, ipc, rcr);
+    err = self_defined_xx_setup_cork(sk, cork, ipc);
     if (err) {
         return ERR_PTR(err);
     }
@@ -182,13 +183,15 @@ struct sk_buff *self_defined_icing_make_skb(struct sock *sk,
     err = self_defined__xx_append_data(sk, fl4, &queue, cork,
                                        &current->task_frag, getfrag,
                                        from, length, transhdrlen, flags,
-                                       rcr, icing_header_size);
+                                       rcr->ite, icing_header_size);
     if (err) {
         __ip_flush_pending_frames(sk, &queue, cork);
         return ERR_PTR(err);
     }
 
-    return self_defined__icing_make_skb(sk, fl4, &queue, cork, rcr, encryption_time_elapsed);
+    struct sk_buff* result =  self_defined__icing_make_skb(sk, fl4, &queue, cork, rcr, enc_time_elapsed);
+    *make_skb_time_elapsed = ktime_get_real_ns() - start_make_skb_time;
+    return result;
 }
 
 
@@ -197,7 +200,7 @@ struct sk_buff *self_defined__icing_make_skb(struct sock *sk,
                                              struct sk_buff_head *queue,
                                              struct inet_cork *cork,
                                              struct RoutingCalcRes *rcr,
-                                             u64* encryption_time_elapsed) {
+                                             u64* enc_time_elapsed) {
     struct sk_buff *skb, *tmp_skb;
     struct sk_buff **tail_skb;
     struct inet_sock *inet = inet_sk(sk);
@@ -253,12 +256,20 @@ struct sk_buff *self_defined__icing_make_skb(struct sock *sk,
     icing_header->length_of_path = rcr->rtes[0]->path_length; // 设置长度 (字段12)
     icing_header->current_path_index = 0; // 当前的索引 (字段13)
     // ---------------------------------------------------------------------------------------
+
+
+    u64 start_enc_time = ktime_get_real_ns();
+    // 进行 hash api 和  hmac api 的初始化
+    struct pv_struct* p = get_cpu_ptr(&validation_api);
     // 头部后续部分初始化
     // ---------------------------------------------------------------------------------------
     fill_icing_path(icing_header, rcr->rtes[0]); // 填充路径部分
     fill_icing_expire(icing_header, rcr->rtes[0]); // 填充 expire 部分
-    fill_icing_validation(icing_header, rcr->rtes[0], pvs, encryption_time_elapsed); // 填充验证字段部分
     // ---------------------------------------------------------------------------------------
+    fill_icing_validation(icing_header, rcr->rtes[0], pvs, p->hash_api, p->hmac_api); // 填充验证字段部分
+    // 释放 p
+    put_cpu_ptr(p);
+    *enc_time_elapsed = ktime_get_real_ns() - start_enc_time;
 
     // 等待一切就绪后计算 check
     icing_send_check(icing_header);
