@@ -4,6 +4,10 @@
 #include "structure/interface/interface_table.h"
 #include "structure/malicious/malicious_params.h"
 #include <net/ip.h>
+
+#define RATE_ADJUST_MODE_EPOCH 0
+#define RATE_ADJUST_MODE_TIMESTAMP 1
+
 struct SecPathMabHopIdentifier {
     __u8 link_id;
     __u8 incoming_link_id;
@@ -22,6 +26,8 @@ struct SecPathMabSettings {
     int sec_path_mab_type;    // sec_path_mab 类型
     int min_ack_for_rtt_estimation; // rtt estimation
     bool send_sample_packets; // 是否当前进行采样包的发送
+    u64 sync_timestamp; // 同步时间
+    int rate_adjust_mode; // 丢包率调整粒度
     spinlock_t lock;
 };
 

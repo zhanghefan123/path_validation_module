@@ -238,26 +238,40 @@ void sec_path_mab_ack_normal_router_process_ack_packets(struct sk_buff* skb, str
     // 获取当前的 header
     struct SecPathMabAckHeader* sec_path_mab_ack_header = sec_path_mab_ack_hdr(skb);
 
-    // 获取当前数据包的 epoch
-    int epoch = sec_path_mab_ack_header->epoch;
 
-    // 进行链表的遍历
-    // ------------------------------------------------------------------
-    struct ScheduledCorruptSpecialPacketRatio* entry, *tmp;
-    list_for_each_entry_safe(entry, tmp, &(pvs->llbmpt->corrupt_special_packet_ratio_entry_list), list){
-        if(NULL != entry){
-            if(entry->employ_epoch_id <= epoch){
-                pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_start = entry->corrupt_special_packet_ratio_start;
-                pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_end = entry->corrupt_special_packet_ratio_end;
-                list_del(&entry->list);
-                kfree(entry);
-            } else {
-                break;
+    if(pvs->sec_path_mab_settings->rate_adjust_mode == RATE_ADJUST_MODE_EPOCH) {
+        // 获取当前数据包的 epoch
+        int epoch = sec_path_mab_ack_header->epoch;
+        struct ScheduledCorruptSpecialPacketRatio *entry, *tmp;
+        // 进行链表的遍历
+        // ------------------------------------------------------------------
+        list_for_each_entry_safe(entry, tmp, &(pvs->llbmpt->corrupt_special_packet_ratio_entry_list), list) {
+            if (NULL != entry) {
+                if (entry->employ_epoch_or_timestamp <= epoch) {
+                    pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_start = entry->corrupt_special_packet_ratio_start;
+                    pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_end = entry->corrupt_special_packet_ratio_end;
+                    list_del(&entry->list);
+                    kfree(entry);
+                }
+            }
+        }
+        // ------------------------------------------------------------------
+    } else {
+        u64 time_elapsed_ms = (ktime_get_us() - pvs->sec_path_mab_settings->sync_timestamp) / 1000;
+        struct ScheduledCorruptSpecialPacketRatio* entry, *tmp;
+        list_for_each_entry_safe(entry, tmp, &(pvs->llbmpt->corrupt_special_packet_ratio_entry_list), list){
+            if(NULL != entry){
+                if(entry->employ_epoch_or_timestamp <= time_elapsed_ms){
+                    pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_start = entry->corrupt_special_packet_ratio_start;
+                    pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_end = entry->corrupt_special_packet_ratio_end;
+                    printk(KERN_EMERG "normal router %d updates corrupt special ratio to [%d, %d] for timestamp %d\n", pvs->node_id,
+                           entry->corrupt_special_packet_ratio_start, entry->corrupt_special_packet_ratio_end, entry->employ_epoch_or_timestamp);
+                    list_del(&entry->list);
+                    kfree(entry);
+                }
             }
         }
     }
-    // ------------------------------------------------------------------
-
 
     // 决定是否进行篡改
     bool corrupt = corrupt_decision(pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_start,

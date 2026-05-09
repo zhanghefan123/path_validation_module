@@ -52,7 +52,8 @@ enum {
     CMD_SET_MALICIOUS_PARAMS, // 23. 进行恶意参数的设置
     CMD_RETRIEVE_KERNEL_INFORMATION, // 24. 进行需要的 counters 和 acks 的获取
     CMD_SET_SCHDULED_MALICIOUS_PARAMS, // 25. 进行定时的恶意参数设置
-    CMD_SET_MIN_ACK_FOR_RTT_ESTIMATION
+    CMD_SET_MIN_ACK_FOR_RTT_ESTIMATION, // 26 设置 RTT
+    CMD_START_SEC_PATH_MAB_SYNC,  // 27. 同步
 };
 
 #define VERSION_NR 1

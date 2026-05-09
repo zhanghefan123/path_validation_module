@@ -130,7 +130,11 @@ const struct genl_ops exmpl_gnl_ops_echo[] = {
             .cmd = CMD_SET_MIN_ACK_FOR_RTT_ESTIMATION,
             .policy = attr_type_mapping,
             .doit = netlink_set_min_ack_for_rtt_estimation,
-        },
+        }, {
+            .cmd = CMD_START_SEC_PATH_MAB_SYNC,
+            .policy = attr_type_mapping,
+            .doit = netlink_start_sec_path_mab_sync
+        }
 };
 
 /**

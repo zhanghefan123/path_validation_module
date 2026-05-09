@@ -1634,85 +1634,6 @@ int netlink_retrieve_kernel_information(struct sk_buff *request, struct genl_inf
     }
 }
 
-
-/**
- * netlink_retrieve_kernel_information() - 取出指定 epoch 的 ACK 列表，拼成逗号分隔字符串回复后释放该 epoch 节点
- * @request: 请求 skb
- * @info: genl 属性
- *
- * 载荷：十进制 epoch_id。从 hbale 查找 sfse，将 received_acks 拼入 response_buffer，
- * 随后 hlist_del 并 free_sfse()。
- *
- * Return: 0 或负数错误码。
- */
-//int netlink_retrieve_kernel_information_for_fixed_batch_original_version(struct sk_buff *request, struct genl_info *info) {
-//    char receive_buffer[MAX_NETLINK_MESSAGE_SIZE];
-//    char response_buffer[1024];
-//
-//    response_buffer[0] = '\0';
-//    struct net *current_ns = sock_net(request->sk);
-//    struct PathValidationStructure *pvs = get_pvs_from_ns(current_ns);
-//    {
-//        int err = recv_message_copy(info, receive_buffer, sizeof(receive_buffer));
-//        if (err)
-//            return err;
-//    }
-//    if (NULL == pvs->hbale) {
-//        snprintf(response_buffer, sizeof(response_buffer), "Err: hbale is NULL\n");
-//        return send_reply(response_buffer, info);
-//    }
-//
-//    struct StatisticsForSingleEpoch *sfse = find_sfse_in_hbale(pvs->hbale, pvs->sec_path_mab_settings->current_retrieve_epoch);
-//    if (NULL == sfse) {
-//        snprintf(response_buffer, sizeof(response_buffer), "Err: cannot find sfse with epoch id: %d\n", pvs->sec_path_mab_settings->current_retrieve_epoch);
-//        return send_reply(response_buffer, info);
-//    }
-//
-//    struct HashBasedAckCacheTableForSingleEpoch *hbase = find_hbase_in_hbace(pvs->hbace, pvs->sec_path_mab_settings->current_retrieve_epoch);
-//    if (NULL == hbase) {
-//        snprintf(response_buffer, sizeof(response_buffer), "Err: cannot find hbase with epoch id: %d\n", pvs->sec_path_mab_settings->current_retrieve_epoch);
-//        return send_reply(response_buffer, info);
-//    }
-//
-//    // 1. 第1个条件是所有的 packets 全部丢出去了
-//    int remained_packets = sfse->batch_size - get_sfse_sampling_packets(sfse);
-//    bool first_condition = (remained_packets == 0);
-//    if(!first_condition){
-//        snprintf(response_buffer, sizeof(response_buffer),
-//                 "Err: first condition is not fulfilled, there are %d scheduled packets are not forwarded", remained_packets);
-//        printk(KERN_EMERG "%s\n", response_buffer);
-//        return send_reply(response_buffer, info);
-//    }
-//
-//    // 2. 第2个条件 （是否当前时间戳 > 超时时间戳）
-//    u64 current_timestamp = ktime_get_us();
-//    sfse->timeout_timestamp = get_timeout_timestamp(sfse);
-//    bool third_condition = current_timestamp > sfse->timeout_timestamp;
-//    if (!third_condition) {
-//        snprintf(response_buffer, sizeof(response_buffer),
-//                 "Err: second condition is not fulfilled, remain: %llu us via retrieving epoch %d",
-//                 sfse->timeout_timestamp - current_timestamp, pvs->sec_path_mab_settings->current_retrieve_epoch);
-//        return send_reply(response_buffer, info);
-//    }
-//
-//    // 4. 如果2个条件都被满足了, 那么就可以安全地返回 ACK 列表了
-//    write_response_string_for_fixed_batch(sfse, response_buffer, pvs->sec_path_mab_settings->current_retrieve_epoch);
-//    pvs->sec_path_mab_settings->current_retrieve_epoch++;
-//
-//    // 5. 如果都返回了, 就可以进行 sfse 的释放了
-//    spin_lock_bh(&(pvs->hbale->lock));
-//    free_sfse_with_pointer(sfse);
-//    spin_unlock_bh(&(pvs->hbale->lock));
-//
-//    // 6. 如果都返回了, 也可以进行 hbase 的释放了
-//    spin_lock_bh(&(pvs->hbace->lock));
-//    free_hbase_with_pointer(hbase);
-//    spin_unlock_bh(&(pvs->hbace->lock));
-//
-//    return send_reply(response_buffer, info);
-//}
-
-
 /**
  * netlink_retrieve_kernel_information() - 取出指定 epoch 的 ACK 列表，拼成逗号分隔字符串回复后释放该 epoch 节点
  * @request: 请求 skb
@@ -1907,7 +1828,7 @@ int netlink_set_scheduled_malicious_params(struct sk_buff *request, struct genl_
     int count = 0;
 
     // define parameters
-    int epoch_employed;
+    int epoch_employed_or_timestamp;
     int corrupt_ratio_start;
     int corrupt_ratio_end;
     int corrupt_special_ratio_start;
@@ -1927,7 +1848,7 @@ int netlink_set_scheduled_malicious_params(struct sk_buff *request, struct genl_
         } else {
             int variable_in_integer = (int) (simple_strtol(variable_in_str, NULL, 10));
             if (count == 0) {
-                epoch_employed = variable_in_integer;
+                epoch_employed_or_timestamp = variable_in_integer;
             } else if (count == 1) {
                 corrupt_ratio_start = variable_in_integer;
             } else if (count == 2) {
@@ -1944,12 +1865,12 @@ int netlink_set_scheduled_malicious_params(struct sk_buff *request, struct genl_
         count += 1;
     }
 
-    struct ScheduledCorruptRatio *scheduled_corrupt_ratio = init_scheduled_corrupt_ratio(epoch_employed,
+    struct ScheduledCorruptRatio *scheduled_corrupt_ratio = init_scheduled_corrupt_ratio(epoch_employed_or_timestamp,
                                                                                          corrupt_ratio_start,
                                                                                          corrupt_ratio_end);
 
     struct ScheduledCorruptSpecialPacketRatio *scheduled_corrupt_special_packet_ratio = init_scheduled_corrupt_special_packet_ratio(
-            epoch_employed,
+            epoch_employed_or_timestamp,
             corrupt_special_ratio_start,
             corrupt_special_ratio_end);
 
@@ -1960,7 +1881,7 @@ int netlink_set_scheduled_malicious_params(struct sk_buff *request, struct genl_
     } else {
         snprintf(response_buffer, sizeof(response_buffer),
                  "CMD_SET_SCHEDULED_MALICIOUS_PARAMS: epoch_employed: %d, corrupt_ratio: %d-%d, corrupt_special_ratio: %d-%d\n",
-                 epoch_employed, corrupt_ratio_start, corrupt_ratio_end, corrupt_special_ratio_start,
+                 epoch_employed_or_timestamp, corrupt_ratio_start, corrupt_ratio_end, corrupt_special_ratio_start,
                  corrupt_special_ratio_end);
     }
     return send_reply(response_buffer, info);
@@ -1980,5 +1901,27 @@ int netlink_set_min_ack_for_rtt_estimation(struct sk_buff *request, struct genl_
     struct PathValidationStructure *pvs = get_pvs_from_ns(current_ns);
     pvs->sec_path_mab_settings->min_ack_for_rtt_estimation = min_ack_for_rtt_estimation;
     snprintf(response_buffer, sizeof(response_buffer), "CMD_SET_MIN_ACK_FOR_RTT_ESTIMATION: %d", min_ack_for_rtt_estimation);
+    return send_reply(response_buffer, info);
+}
+
+int netlink_start_sec_path_mab_sync(struct sk_buff *request, struct genl_info *info){
+    struct net *current_ns = sock_net(request->sk);
+    struct PathValidationStructure *pvs = get_pvs_from_ns(current_ns);
+    char receive_buffer[MAX_NETLINK_MESSAGE_SIZE];
+    char response_buffer[1024];
+    int rate_adjust_mode;
+    {
+        int err = recv_message_copy(info, receive_buffer, sizeof(receive_buffer));
+        if (err)
+            return err;
+    }
+    rate_adjust_mode = (int) (simple_strtol(receive_buffer, NULL, 10));
+    if ((rate_adjust_mode != RATE_ADJUST_MODE_EPOCH) && (rate_adjust_mode != RATE_ADJUST_MODE_TIMESTAMP)){
+        return -EINVAL;
+    }
+    pvs->sec_path_mab_settings->rate_adjust_mode = rate_adjust_mode;
+    pvs->sec_path_mab_settings->sync_timestamp = ktime_get_us();
+    printk(KERN_EMERG "sync node %d\n", pvs->node_id);
+    snprintf(response_buffer, sizeof(response_buffer), "CMD_START_SEC_PATH_MAB_SYNC");
     return send_reply(response_buffer, info);
 }

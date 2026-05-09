@@ -35,11 +35,11 @@ int free_llbpmt(struct LinkedListBasedMaliciousParamsTable *llbpmt) {
     return 0;
 }
 
-struct ScheduledCorruptRatio *init_scheduled_corrupt_ratio(int employ_epoch_id, int corrupt_ratio_start,
-                                                          int corrupt_ratio_end) {
+struct ScheduledCorruptRatio *init_scheduled_corrupt_ratio(int employ_epoch_or_timestamp, int corrupt_ratio_start,
+                                                           int corrupt_ratio_end) {
     struct ScheduledCorruptRatio *malicious_params_entry = (struct ScheduledCorruptRatio *) kmalloc(
             sizeof(struct ScheduledCorruptRatio), GFP_KERNEL);
-    malicious_params_entry->employ_epoch_id = employ_epoch_id;
+    malicious_params_entry->employ_epoch_or_timestamp = employ_epoch_or_timestamp;
     malicious_params_entry->corrupt_ratio_start = corrupt_ratio_start;
     malicious_params_entry->corrupt_ratio_end = corrupt_ratio_end;
     INIT_LIST_HEAD(&(malicious_params_entry->list));
@@ -50,7 +50,7 @@ struct ScheduledCorruptSpecialPacketRatio *init_scheduled_corrupt_special_packet
                                                           int corrupt_ratio_end) {
     struct ScheduledCorruptSpecialPacketRatio *malicious_params_entry = (struct ScheduledCorruptSpecialPacketRatio *) kmalloc(
             sizeof(struct ScheduledCorruptSpecialPacketRatio), GFP_KERNEL);
-    malicious_params_entry->employ_epoch_id = employ_epoch_id;
+    malicious_params_entry->employ_epoch_or_timestamp = employ_epoch_id;
     malicious_params_entry->corrupt_special_packet_ratio_start = corrupt_ratio_start;
     malicious_params_entry->corrupt_special_packet_ratio_end = corrupt_ratio_end;
     INIT_LIST_HEAD(&(malicious_params_entry->list));
