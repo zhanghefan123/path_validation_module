@@ -1262,7 +1262,6 @@ int netlink_set_sec_path_mab_route_for_fixed_batch(struct sk_buff *request, stru
                 if (count == 3) {
                     first_link_identifier = variable_in_integer;
                 } else {
-//                    sec_path_mab_route->link_identifiers[count - 4] = variable_in_integer;
                     sec_path_mab_route->link_identifiers[link_identifier_index++] = variable_in_integer;
                 }
             } else if (count == 3 + number_of_link_identifiers) {
@@ -1272,7 +1271,6 @@ int netlink_set_sec_path_mab_route_for_fixed_batch(struct sk_buff *request, stru
                 sec_path_mab_route->sample_node_ids = (int *) kmalloc(sizeof(int) * number_of_sample_nodes, GFP_ATOMIC);
             } else if (count <= 3 + number_of_link_identifiers + number_of_sample_nodes) {
                 sample_node = variable_in_integer;
-//                sec_path_mab_route->sample_node_ids[count - 4 - number_of_link_identifiers] = sample_node;
                 sec_path_mab_route->sample_node_ids[sample_node_index++] = sample_node;
             } else if(count == 4 + number_of_link_identifiers + number_of_sample_nodes){
                 batch_size = variable_in_integer;
