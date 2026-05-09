@@ -38,3 +38,10 @@ void set_send_sample_packets(struct SecPathMabSettings* sec_path_mab_settings, b
     sec_path_mab_settings->send_sample_packets = send_sample_packets;
     spin_unlock_bh(&(sec_path_mab_settings->lock));
 }
+
+
+void set_best_path_id(struct SecPathMabSettings* sec_path_mab_settings, int best_path_id){
+    spin_lock_bh(&(sec_path_mab_settings->lock));
+    sec_path_mab_settings->best_path_id = best_path_id;
+    spin_unlock_bh(&(sec_path_mab_settings->lock));
+}

@@ -49,8 +49,6 @@ struct PathValidationStructure {
 
     // 基于哈希的路由表
     struct HashBasedRoutingTable *hbrt;
-    // 基于哈希的缓存表
-//    struct HashBasedPvfCacheTable *hbpct;
     // 基于数组的接口表
     struct ArrayBasedInterfaceTable *abit;
     // 存储 segment list

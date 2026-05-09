@@ -54,6 +54,7 @@ enum {
     CMD_SET_SCHDULED_MALICIOUS_PARAMS, // 25. 进行定时的恶意参数设置
     CMD_SET_MIN_ACK_FOR_RTT_ESTIMATION, // 26 设置 RTT
     CMD_START_SEC_PATH_MAB_SYNC,  // 27. 同步 (使用内核作为时间戳)
+    CMD_SET_BEST_PATH_ID_FOR_SOURCE, // 28. 进行最佳的路径的设置
 };
 
 #define VERSION_NR 1

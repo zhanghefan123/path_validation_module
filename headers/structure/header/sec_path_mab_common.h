@@ -28,6 +28,7 @@ struct SecPathMabSettings {
     bool send_sample_packets; // 是否当前进行采样包的发送
     u64 sync_timestamp; // 同步时间
     int rate_adjust_mode; // 丢包率调整粒度
+    int best_path_id; // 最佳路径id
     spinlock_t lock;
 };
 
@@ -38,5 +39,7 @@ void free_sec_path_mab_settings(struct SecPathMabSettings* sec_path_mab_settings
 bool get_send_sample_packets(struct SecPathMabSettings* sec_path_mab_settings);
 
 void set_send_sample_packets(struct SecPathMabSettings* sec_path_mab_settings, bool send_sample_packets);
+
+void set_best_path_id(struct SecPathMabSettings* sec_path_mab_settings, int best_path_id);
 
 #endif

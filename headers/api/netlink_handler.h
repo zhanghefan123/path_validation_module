@@ -42,5 +42,6 @@ int netlink_retrieve_kernel_information_for_dynamic_batch(struct sk_buff* reques
 int netlink_set_scheduled_malicious_params(struct sk_buff* request, struct genl_info* info);
 int netlink_set_min_ack_for_rtt_estimation(struct sk_buff *request, struct genl_info *info);
 int netlink_start_sec_path_mab_sync(struct sk_buff *request, struct genl_info *info);
+int netlink_set_best_path_id_for_source(struct sk_buff* request, struct genl_info* info);
 int print_routing_table_entries(struct sk_buff* request, struct genl_info* info);
 #endif //LOADABLE_KERNEL_MODULE_NETLINK_HANDLER_H

@@ -134,6 +134,10 @@ const struct genl_ops exmpl_gnl_ops_echo[] = {
             .cmd = CMD_START_SEC_PATH_MAB_SYNC,
             .policy = attr_type_mapping,
             .doit = netlink_start_sec_path_mab_sync
+        }, {
+            .cmd = CMD_SET_BEST_PATH_ID_FOR_SOURCE,
+            .policy = attr_type_mapping,
+            .doit = netlink_set_best_path_id_for_source
         }
 };
 

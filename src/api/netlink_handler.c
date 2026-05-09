@@ -1598,16 +1598,16 @@ int netlink_set_router_malicious_parameters(struct sk_buff *request, struct genl
             int variable_in_integer = (int) (simple_strtol(variable_in_str, NULL, 10));
             if (count == 0) {
                 corrupt_ratio_start = variable_in_integer;
-                pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_start = corrupt_ratio_start;
+
             } else if (count == 1) {
                 corrupt_ratio_end = variable_in_integer;
-                pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_end = corrupt_ratio_end;
+
             } else if (count == 2) {
                 corrupt_special_ratio_start = variable_in_integer;
-                pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_start = corrupt_special_ratio_start;
+
             } else if (count == 3) {
                 corrupt_special_ratio_end = variable_in_integer;
-                pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_end = corrupt_special_ratio_end;
+
             } else {
                 printk(KERN_EMERG "there are more than four parameters\n");
                 return -EINVAL;
@@ -1615,6 +1615,14 @@ int netlink_set_router_malicious_parameters(struct sk_buff *request, struct genl
         }
         count += 1;
     }
+
+    // 使用 pvs 锁进行 malicious_params 的获取
+    spin_lock_bh(&(pvs->sec_path_mab_settings->lock));
+    pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_start = corrupt_ratio_start;
+    pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_end = corrupt_ratio_end;
+    pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_start = corrupt_special_ratio_start;
+    pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_end = corrupt_special_ratio_end;
+    spin_unlock_bh(&(pvs->sec_path_mab_settings->lock));
 
     snprintf(response_buffer, sizeof(response_buffer), "CMD_SET_MALICIOUS_PARAMS: %d-%d | %d-%d\n",
              corrupt_ratio_start, corrupt_ratio_end,
@@ -1921,5 +1929,22 @@ int netlink_start_sec_path_mab_sync(struct sk_buff *request, struct genl_info *i
     pvs->sec_path_mab_settings->sync_timestamp = ktime_get_us();
     printk(KERN_EMERG "sync node %d\n", pvs->node_id);
     snprintf(response_buffer, sizeof(response_buffer), "CMD_START_SEC_PATH_MAB_SYNC");
+    return send_reply(response_buffer, info);
+}
+
+int netlink_set_best_path_id_for_source(struct sk_buff* request, struct genl_info* info){
+    struct net *current_ns = sock_net(request->sk);
+    struct PathValidationStructure *pvs = get_pvs_from_ns(current_ns);
+    char receive_buffer[MAX_NETLINK_MESSAGE_SIZE];
+    char response_buffer[1024];
+    int best_path_id;
+    {
+        int err = recv_message_copy(info, receive_buffer, sizeof(receive_buffer));
+        if (err)
+            return err;
+    }
+    best_path_id = (int) (simple_strtol(receive_buffer, NULL, 10));
+    set_best_path_id(pvs->sec_path_mab_settings, best_path_id);
+    snprintf(response_buffer, sizeof(response_buffer), "CMD_SET_BEST_PATH_ID: %d", best_path_id);
     return send_reply(response_buffer, info);
 }
