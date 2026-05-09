@@ -8,7 +8,7 @@ struct SecPathMabSettings* init_sec_path_mab_settings(void) {
     sec_path_mab_settings->current_epoch = 0;
     sec_path_mab_settings->current_packet_identifier = 1;
     sec_path_mab_settings->sync_timestamp = 0;
-    sec_path_mab_settings->best_path_id = 1
+    sec_path_mab_settings->best_path_id = 1;
     spin_lock_init(&(sec_path_mab_settings->lock));
     return sec_path_mab_settings;
 }
