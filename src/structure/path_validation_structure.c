@@ -68,7 +68,6 @@ struct PathValidationStructure *init_pvs(void) {
     pvs->bloom_filter = NULL;
     pvs->hbst = init_hbst(100); // 这里固定的 bucket 数量为 100
     pvs->hbest = init_hbest(100); // 这里固定的 bucket 数量为 100
-//    pvs->hbpct = init_hbpct(100); // 这里固定的 bucket 数量为 100
     pvs->hash_api = generate_hash_api();
     pvs->hmac_api = generate_hmac_api();
     pvs->selir_info = init_selir_info();
@@ -97,8 +96,6 @@ void free_pvs(struct PathValidationStructure *pvs) {
 
         // 进行基于哈希的路由表的释放
         free_hbrt(pvs->hbrt);
-        // 进行基于hash的缓存表的释放
-//        free_hbpct(pvs->hbpct);
         // 进行基于数组的接口表的释放
         free_abit(pvs->abit);
         // 进行基于哈希的会话表的释放

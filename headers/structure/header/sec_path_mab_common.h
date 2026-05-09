@@ -27,7 +27,6 @@ struct SecPathMabSettings {
     int min_ack_for_rtt_estimation; // rtt estimation
     bool send_sample_packets; // 是否当前进行采样包的发送
     u64 sync_timestamp; // 同步时间
-    int rate_adjust_mode; // 丢包率调整粒度
     int best_path_id; // 最佳路径id
     spinlock_t lock;
 };

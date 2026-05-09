@@ -1736,7 +1736,6 @@ int netlink_retrieve_kernel_information_for_fixed_batch(struct sk_buff *request,
     } else {
         // 反之, 如果进行了 epoch 的获取的话
         snprintf(response_buffer, sizeof(response_buffer), "%d,%s", number_of_retrieved_epochs, retrieved_acks_string);
-//        printk(KERN_EMERG "response_buffer: %s\n", response_buffer);
     }
 
 
@@ -1907,28 +1906,6 @@ int netlink_set_min_ack_for_rtt_estimation(struct sk_buff *request, struct genl_
     struct PathValidationStructure *pvs = get_pvs_from_ns(current_ns);
     pvs->sec_path_mab_settings->min_ack_for_rtt_estimation = min_ack_for_rtt_estimation;
     snprintf(response_buffer, sizeof(response_buffer), "CMD_SET_MIN_ACK_FOR_RTT_ESTIMATION: %d", min_ack_for_rtt_estimation);
-    return send_reply(response_buffer, info);
-}
-
-int netlink_start_sec_path_mab_sync(struct sk_buff *request, struct genl_info *info){
-    struct net *current_ns = sock_net(request->sk);
-    struct PathValidationStructure *pvs = get_pvs_from_ns(current_ns);
-    char receive_buffer[MAX_NETLINK_MESSAGE_SIZE];
-    char response_buffer[1024];
-    int rate_adjust_mode;
-    {
-        int err = recv_message_copy(info, receive_buffer, sizeof(receive_buffer));
-        if (err)
-            return err;
-    }
-    rate_adjust_mode = (int) (simple_strtol(receive_buffer, NULL, 10));
-    if ((rate_adjust_mode != RATE_ADJUST_MODE_EPOCH) && (rate_adjust_mode != RATE_ADJUST_MODE_TIMESTAMP)){
-        return -EINVAL;
-    }
-    pvs->sec_path_mab_settings->rate_adjust_mode = rate_adjust_mode;
-    pvs->sec_path_mab_settings->sync_timestamp = ktime_get_us();
-    printk(KERN_EMERG "sync node %d\n", pvs->node_id);
-    snprintf(response_buffer, sizeof(response_buffer), "CMD_START_SEC_PATH_MAB_SYNC");
     return send_reply(response_buffer, info);
 }
 
