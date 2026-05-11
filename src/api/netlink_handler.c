@@ -1076,8 +1076,7 @@ int netlink_set_sec_path_mab_route_for_dynamic_batch(struct sk_buff* request, st
     struct SecPathMabRoute *sec_path_mab_route = (struct SecPathMabRoute *) kmalloc(sizeof(struct SecPathMabRoute),
                                                                                     GFP_ATOMIC);
     sec_path_mab_route->sample_sequence = NULL;
-
-
+    int path_id;
     int source_id;
     int destination_id;
     int number_of_link_identifiers;
@@ -1098,37 +1097,40 @@ int netlink_set_sec_path_mab_route_for_dynamic_batch(struct sk_buff* request, st
         } else {
             int variable_in_integer = (int) (simple_strtol(variable_in_str, NULL, 10));
             if (count == 0) {
+                path_id = variable_in_integer;
+                sec_path_mab_route->path_id = path_id;
+            } else if (count == 1) {
                 source_id = variable_in_integer;
                 sec_path_mab_route->source_id = source_id;
-            } else if (count == 1) {
+            } else if (count == 2) {
                 destination_id = variable_in_integer;
                 sec_path_mab_route->destination_id = destination_id;
-            } else if (count == 2) {
+            } else if (count == 3) {
                 number_of_link_identifiers = variable_in_integer;
                 /* 首个 link id 仅用于出接口，不计入 link_identifiers[] */
                 sec_path_mab_route->number_of_link_identifiers = number_of_link_identifiers - 1;
                 sec_path_mab_route->link_identifiers = (int *) kmalloc(
                         sizeof(int) * sec_path_mab_route->number_of_link_identifiers, GFP_ATOMIC);
-            } else if (count <= 2 + number_of_link_identifiers) {
-                if (count == 3) {
+            } else if (count <= 3 + number_of_link_identifiers) {
+                if (count == 4) {
                     first_link_identifier = variable_in_integer;
                 } else {
-                    sec_path_mab_route->link_identifiers[count - 4] = variable_in_integer;
+                    sec_path_mab_route->link_identifiers[count - 5] = variable_in_integer;
                 }
-            } else if (count == 2 + number_of_link_identifiers + 1) {
+            } else if (count == 3 + number_of_link_identifiers + 1) {
                 number_of_sample_nodes = variable_in_integer;
                 sec_path_mab_route->number_of_sample_nodes = number_of_sample_nodes;
                 sec_path_mab_route->sample_node_ids = (int *) kmalloc(sizeof(int) * number_of_sample_nodes, GFP_ATOMIC);
-            } else if (count <= 3 + number_of_link_identifiers + number_of_sample_nodes) {
+            } else if (count <= 4 + number_of_link_identifiers + number_of_sample_nodes) {
                 sample_node = variable_in_integer;
-                sec_path_mab_route->sample_node_ids[count - 4 - number_of_link_identifiers] = sample_node;
-            } else if (count == 4 + number_of_link_identifiers + number_of_sample_nodes) {
+                sec_path_mab_route->sample_node_ids[count - 5 - number_of_link_identifiers] = sample_node;
+            } else if (count == 5 + number_of_link_identifiers + number_of_sample_nodes) {
                 mini_batch_size = variable_in_integer;
             }
             else {
                 free_sec_path_mab_route(sec_path_mab_route);
                 printk(KERN_EMERG "there are more than %d params in CMD_SET_SEC_PATH_MAB_ROUTE\n",
-                       5 + number_of_link_identifiers + number_of_sample_nodes);
+                       6 + number_of_link_identifiers + number_of_sample_nodes);
                 return -EINVAL;
             }
         }
@@ -1187,6 +1189,129 @@ int netlink_set_sec_path_mab_route_for_dynamic_batch(struct sk_buff* request, st
     return send_reply(response_buffer, info);
 }
 
+
+//int netlink_set_sec_path_mab_route_for_dynamic_batch(struct sk_buff* request, struct genl_info * info){
+//    char receive_buffer[MAX_NETLINK_MESSAGE_SIZE];
+//    char *receive_buffer_ptr;
+//    char response_buffer[1024];
+//    struct net *current_ns = sock_net(request->sk);
+//    struct PathValidationStructure *pvs = get_pvs_from_ns(current_ns);
+//    const char *delimeter = ",";
+//    int count = 0;
+//    struct SecPathMabRoute *sec_path_mab_route = (struct SecPathMabRoute *) kmalloc(sizeof(struct SecPathMabRoute),
+//                                                                                    GFP_ATOMIC);
+//    sec_path_mab_route->sample_sequence = NULL;
+//
+//
+//    int source_id;
+//    int destination_id;
+//    int number_of_link_identifiers;
+//    int first_link_identifier;
+//    int number_of_sample_nodes;
+//    int sample_node;
+//    int mini_batch_size;
+//    {
+//        int err = recv_message_copy(info, receive_buffer, sizeof(receive_buffer));
+//        if (err)
+//            return err;
+//    }
+//    receive_buffer_ptr = receive_buffer;
+//    while (true) {
+//        char *variable_in_str = strsep(&receive_buffer_ptr, delimeter);
+//        if (variable_in_str == NULL || (0 == strcmp(variable_in_str, ""))) {
+//            break;
+//        } else {
+//            int variable_in_integer = (int) (simple_strtol(variable_in_str, NULL, 10));
+//            if (count == 0) {
+//                source_id = variable_in_integer;
+//                sec_path_mab_route->source_id = source_id;
+//            } else if (count == 1) {
+//                destination_id = variable_in_integer;
+//                sec_path_mab_route->destination_id = destination_id;
+//            } else if (count == 2) {
+//                number_of_link_identifiers = variable_in_integer;
+//                /* 首个 link id 仅用于出接口，不计入 link_identifiers[] */
+//                sec_path_mab_route->number_of_link_identifiers = number_of_link_identifiers - 1;
+//                sec_path_mab_route->link_identifiers = (int *) kmalloc(
+//                        sizeof(int) * sec_path_mab_route->number_of_link_identifiers, GFP_ATOMIC);
+//            } else if (count <= 2 + number_of_link_identifiers) {
+//                if (count == 3) {
+//                    first_link_identifier = variable_in_integer;
+//                } else {
+//                    sec_path_mab_route->link_identifiers[count - 4] = variable_in_integer;
+//                }
+//            } else if (count == 2 + number_of_link_identifiers + 1) {
+//                number_of_sample_nodes = variable_in_integer;
+//                sec_path_mab_route->number_of_sample_nodes = number_of_sample_nodes;
+//                sec_path_mab_route->sample_node_ids = (int *) kmalloc(sizeof(int) * number_of_sample_nodes, GFP_ATOMIC);
+//            } else if (count <= 3 + number_of_link_identifiers + number_of_sample_nodes) {
+//                sample_node = variable_in_integer;
+//                sec_path_mab_route->sample_node_ids[count - 4 - number_of_link_identifiers] = sample_node;
+//            } else if (count == 4 + number_of_link_identifiers + number_of_sample_nodes) {
+//                mini_batch_size = variable_in_integer;
+//            }
+//            else {
+//                free_sec_path_mab_route(sec_path_mab_route);
+//                printk(KERN_EMERG "there are more than %d params in CMD_SET_SEC_PATH_MAB_ROUTE\n",
+//                       5 + number_of_link_identifiers + number_of_sample_nodes);
+//                return -EINVAL;
+//            }
+//        }
+//        count += 1;
+//    }
+//
+//    struct InterfaceTableEntry *output_ite = NULL;
+//    output_ite = find_ite_in_abit_with_link_identifier(pvs->abit, first_link_identifier);
+//    if (NULL != output_ite) {
+//        sec_path_mab_route->ite = output_ite;
+//    } else {
+//        printk(KERN_EMERG "cannot find output interface with link identifier: %d\n", first_link_identifier);
+//        free_sec_path_mab_route(sec_path_mab_route);
+//        return -EINVAL;
+//    }
+//
+//    // 刚刚进行换路, 肯定需要进行采样包的发送
+//    set_send_sample_packets(pvs->sec_path_mab_settings, true);
+//
+//    if (NULL != pvs->hbale) {
+////        printk(KERN_EMERG "current retrieve epoch: %d\n", pvs->sec_path_mab_settings->current_retrieve_epoch);
+//        struct StatisticsForSingleEpoch *sfse = init_sfse(number_of_sample_nodes,pvs->sec_path_mab_settings->current_retrieve_epoch, mini_batch_size);
+//        int result = add_sfse_to_hbale(pvs->hbale, sfse);
+//        if (result != ADD_SUCCESS) {
+//            free_sec_path_mab_route(sec_path_mab_route);
+//            return -EINVAL;
+//        }
+//    } else {
+//        LOG_WITH_PREFIX("hbale is NULL\n");
+//        free_sec_path_mab_route(sec_path_mab_route);
+//        return -EINVAL;
+//    }
+//
+//    if (NULL != pvs->hbace) {
+//        struct HashBasedAckCacheTableForSingleEpoch *hbase = init_hbase(100, pvs->sec_path_mab_settings->current_retrieve_epoch);
+//        int result = add_hbase_to_hbace(pvs->hbace, hbase);
+//        if (result != ADD_SUCCESS) {
+//            free_sec_path_mab_route(sec_path_mab_route);
+//            return -EINVAL;
+//        }
+//    } else {
+//        LOG_WITH_PREFIX("hbace is NULL\n");
+//        free_sec_path_mab_route(sec_path_mab_route);
+//        return -EINVAL;
+//    }
+//
+//    if (NULL != pvs->sec_path_mab_settings->selected_route) {
+//        free_sec_path_mab_route(pvs->sec_path_mab_settings->selected_route);
+//    }
+//
+//    pvs->sec_path_mab_settings->selected_route = sec_path_mab_route;
+//
+//    snprintf(response_buffer, sizeof(response_buffer),
+//             "CMD_SET_SEC_PATH_MAB_ROUTE: source id: %d, destination_id: %d, number_of_link_identifiers: %d, number_of_sample_nodes: %d",
+//             source_id, destination_id, number_of_link_identifiers, number_of_sample_nodes);
+//    return send_reply(response_buffer, info);
+//}
+
 /**
  * netlink_set_sec_path_mab_route() - 配置安全路径 MAB 实验用路由及 per-epoch ACK 表
  * @request: 请求 skb
@@ -1220,6 +1345,7 @@ int netlink_set_sec_path_mab_route_for_fixed_batch(struct sk_buff *request, stru
     sec_path_mab_route->sample_sequence = NULL;
 
     // 进行变量的定义
+    int path_id;
     int source_id;
     int destination_id;
     int batch_size;
@@ -1247,40 +1373,43 @@ int netlink_set_sec_path_mab_route_for_fixed_batch(struct sk_buff *request, stru
         } else {
             int variable_in_integer = (int) (simple_strtol(variable_in_str, NULL, 10));
             if (count == 0) {
+                path_id = variable_in_integer;
+                sec_path_mab_route->path_id = path_id;
+            } else if (count == 1) {
                 source_id = variable_in_integer;
                 sec_path_mab_route->source_id = source_id;
-            } else if (count == 1) {
+            } else if (count == 2) {
                 destination_id = variable_in_integer;
                 sec_path_mab_route->destination_id = destination_id;
-            } else if (count == 2) {
+            } else if (count == 3) {
                 number_of_link_identifiers = variable_in_integer;
                 /* 首个 link id 仅用于出接口，不计入 link_identifiers[] */
                 sec_path_mab_route->number_of_link_identifiers = number_of_link_identifiers - 1;
                 sec_path_mab_route->link_identifiers = (int *) kmalloc(
                         sizeof(int) * sec_path_mab_route->number_of_link_identifiers, GFP_ATOMIC);
-            } else if (count <= 2 + number_of_link_identifiers) {
-                if (count == 3) {
+            } else if (count <= 3 + number_of_link_identifiers) {
+                if (count == 4) {
                     first_link_identifier = variable_in_integer;
                 } else {
                     sec_path_mab_route->link_identifiers[link_identifier_index++] = variable_in_integer;
                 }
-            } else if (count == 3 + number_of_link_identifiers) {
+            } else if (count == 4 + number_of_link_identifiers) {
                 number_of_sample_nodes = variable_in_integer;
                 sample_counts = (int*)kmalloc(sizeof(int) * number_of_sample_nodes, GFP_KERNEL);
                 sec_path_mab_route->number_of_sample_nodes = number_of_sample_nodes;
                 sec_path_mab_route->sample_node_ids = (int *) kmalloc(sizeof(int) * number_of_sample_nodes, GFP_ATOMIC);
-            } else if (count <= 3 + number_of_link_identifiers + number_of_sample_nodes) {
+            } else if (count <= 4 + number_of_link_identifiers + number_of_sample_nodes) {
                 sample_node = variable_in_integer;
                 sec_path_mab_route->sample_node_ids[sample_node_index++] = sample_node;
-            } else if(count == 4 + number_of_link_identifiers + number_of_sample_nodes){
+            } else if(count == 5 + number_of_link_identifiers + number_of_sample_nodes){
                 batch_size = variable_in_integer;
-            } else if (count <= 4 + number_of_link_identifiers + number_of_sample_nodes + number_of_sample_nodes){
+            } else if (count <= 5 + number_of_link_identifiers + number_of_sample_nodes + number_of_sample_nodes){
                 sample_count = variable_in_integer;
                 sample_counts[sample_count_index++] = sample_count;
             } else {
                 free_sec_path_mab_route(sec_path_mab_route);
                 printk(KERN_EMERG "there are more than %d params in CMD_SET_SEC_PATH_MAB_ROUTE\n",
-                       5 + number_of_link_identifiers + number_of_sample_nodes);
+                       6 + number_of_link_identifiers + number_of_sample_nodes);
                 return -EINVAL;
             }
         }
@@ -1348,6 +1477,150 @@ int netlink_set_sec_path_mab_route_for_fixed_batch(struct sk_buff *request, stru
              source_id, destination_id, number_of_link_identifiers, number_of_sample_nodes);
     return send_reply(response_buffer, info);
 }
+
+
+//int netlink_set_sec_path_mab_route_for_fixed_batch(struct sk_buff *request, struct genl_info *info) {
+//    char receive_buffer[MAX_NETLINK_MESSAGE_SIZE];
+//    char *receive_buffer_ptr;
+//    char response_buffer[1024];
+//    struct net *current_ns = sock_net(request->sk);
+//    struct PathValidationStructure *pvs = get_pvs_from_ns(current_ns);
+//    const char *delimeter = ",";
+//    int count = 0;
+//    struct SecPathMabRoute *sec_path_mab_route = (struct SecPathMabRoute *) kmalloc(sizeof(struct SecPathMabRoute),
+//                                                                                    GFP_ATOMIC);
+//    sec_path_mab_route->sample_sequence = NULL;
+//
+//    // 进行变量的定义
+//    int source_id;
+//    int destination_id;
+//    int batch_size;
+//    int number_of_link_identifiers;
+//    int first_link_identifier;
+//    int number_of_sample_nodes;
+//    int sample_count;
+//
+//    int link_identifier_index = 0;
+//    int sample_node_index = 0;
+//    int sample_count_index = 0;
+//    int* sample_counts = NULL;
+//
+//    int sample_node;
+//    {
+//        int err = recv_message_copy(info, receive_buffer, sizeof(receive_buffer));
+//        if (err)
+//            return err;
+//    }
+//    receive_buffer_ptr = receive_buffer;
+//    while (true) {
+//        char *variable_in_str = strsep(&receive_buffer_ptr, delimeter);
+//        if (variable_in_str == NULL || (0 == strcmp(variable_in_str, ""))) {
+//            break;
+//        } else {
+//            int variable_in_integer = (int) (simple_strtol(variable_in_str, NULL, 10));
+//            if (count == 0) {
+//                source_id = variable_in_integer;
+//                sec_path_mab_route->source_id = source_id;
+//            } else if (count == 1) {
+//                destination_id = variable_in_integer;
+//                sec_path_mab_route->destination_id = destination_id;
+//            } else if (count == 2) {
+//                number_of_link_identifiers = variable_in_integer;
+//                /* 首个 link id 仅用于出接口，不计入 link_identifiers[] */
+//                sec_path_mab_route->number_of_link_identifiers = number_of_link_identifiers - 1;
+//                sec_path_mab_route->link_identifiers = (int *) kmalloc(
+//                        sizeof(int) * sec_path_mab_route->number_of_link_identifiers, GFP_ATOMIC);
+//            } else if (count <= 2 + number_of_link_identifiers) {
+//                if (count == 3) {
+//                    first_link_identifier = variable_in_integer;
+//                } else {
+//                    sec_path_mab_route->link_identifiers[link_identifier_index++] = variable_in_integer;
+//                }
+//            } else if (count == 3 + number_of_link_identifiers) {
+//                number_of_sample_nodes = variable_in_integer;
+//                sample_counts = (int*)kmalloc(sizeof(int) * number_of_sample_nodes, GFP_KERNEL);
+//                sec_path_mab_route->number_of_sample_nodes = number_of_sample_nodes;
+//                sec_path_mab_route->sample_node_ids = (int *) kmalloc(sizeof(int) * number_of_sample_nodes, GFP_ATOMIC);
+//            } else if (count <= 3 + number_of_link_identifiers + number_of_sample_nodes) {
+//                sample_node = variable_in_integer;
+//                sec_path_mab_route->sample_node_ids[sample_node_index++] = sample_node;
+//            } else if(count == 4 + number_of_link_identifiers + number_of_sample_nodes){
+//                batch_size = variable_in_integer;
+//            } else if (count <= 4 + number_of_link_identifiers + number_of_sample_nodes + number_of_sample_nodes){
+//                sample_count = variable_in_integer;
+//                sample_counts[sample_count_index++] = sample_count;
+//            } else {
+//                free_sec_path_mab_route(sec_path_mab_route);
+//                printk(KERN_EMERG "there are more than %d params in CMD_SET_SEC_PATH_MAB_ROUTE\n",
+//                       5 + number_of_link_identifiers + number_of_sample_nodes);
+//                return -EINVAL;
+//            }
+//        }
+//        count += 1;
+//    }
+//
+//    struct InterfaceTableEntry *output_ite = NULL;
+//    output_ite = find_ite_in_abit_with_link_identifier(pvs->abit, first_link_identifier);
+//    if (NULL != output_ite) {
+//        sec_path_mab_route->ite = output_ite;
+//    } else {
+//        printk(KERN_EMERG "cannot find output interface with link identifier: %d\n", first_link_identifier);
+//        free_sec_path_mab_route(sec_path_mab_route);
+//        return -EINVAL;
+//    }
+//
+//    // 进行 sequence 的生成
+//    sec_path_mab_route->sample_sequence = generate_sequence(number_of_sample_nodes, batch_size, sample_counts);
+//
+//    // 进行 sample_counts 释放
+//    if(NULL != sample_counts){
+//        kfree(sample_counts);
+//    }
+//
+//    // 进行发送 epoch 的 ++
+//    pvs->sec_path_mab_settings->current_epoch += 1;
+//
+//    if (NULL != pvs->hbale) {
+//        struct StatisticsForSingleEpoch *sfse = init_sfse(number_of_sample_nodes,
+//                                                          pvs->sec_path_mab_settings->current_epoch,
+//                                                          batch_size);
+//        int result = add_sfse_to_hbale(pvs->hbale, sfse);
+//        if (result != ADD_SUCCESS) {
+//            free_sec_path_mab_route(sec_path_mab_route);
+//            return -EINVAL;
+//        }
+//    } else {
+//        LOG_WITH_PREFIX("hbale is NULL\n");
+//        free_sec_path_mab_route(sec_path_mab_route);
+//        return -EINVAL;
+//    }
+//
+//    if (NULL != pvs->hbace) {
+//        struct HashBasedAckCacheTableForSingleEpoch *hbase = init_hbase(100, pvs->sec_path_mab_settings->current_epoch);
+//        int result = add_hbase_to_hbace(pvs->hbace, hbase);
+//        if (result != ADD_SUCCESS) {
+//            free_sec_path_mab_route(sec_path_mab_route);
+//            return -EINVAL;
+//        }
+//    } else {
+//        LOG_WITH_PREFIX("hbace is NULL\n");
+//        free_sec_path_mab_route(sec_path_mab_route);
+//        return -EINVAL;
+//    }
+//
+//    if (NULL != pvs->sec_path_mab_settings->selected_route) {
+//        free_sec_path_mab_route(pvs->sec_path_mab_settings->selected_route);
+//    }
+//
+//    pvs->sec_path_mab_settings->selected_route = sec_path_mab_route;
+//
+//
+//    snprintf(response_buffer, sizeof(response_buffer),
+//             "CMD_SET_SEC_PATH_MAB_ROUTE: source id: %d, destination_id: %d, number_of_link_identifiers: %d, number_of_sample_nodes: %d",
+//             source_id, destination_id, number_of_link_identifiers, number_of_sample_nodes);
+//    return send_reply(response_buffer, info);
+//}
+
 
 
 int netlink_reset_sec_path_mab_route(struct sk_buff *request, struct genl_info *info){
@@ -1923,5 +2196,45 @@ int netlink_set_best_path_id_for_source(struct sk_buff* request, struct genl_inf
     best_path_id = (int) (simple_strtol(receive_buffer, NULL, 10));
     set_best_path_id(pvs->sec_path_mab_settings, best_path_id);
     snprintf(response_buffer, sizeof(response_buffer), "CMD_SET_BEST_PATH_ID: %d", best_path_id);
+    return send_reply(response_buffer, info);
+}
+
+int netlink_retrieve_per_packet_info(struct sk_buff* request, struct genl_info* info){
+    int max_retrieved_info_count = 400;
+    struct net *current_ns = sock_net(request->sk);
+    struct PathValidationStructure *pvs = get_pvs_from_ns(current_ns);
+    char response_buffer[4096];
+    response_buffer[0] = '\0';
+//    printk(KERN_EMERG "send packet index: %d\n", pvs->sec_path_mab_settings->current_packet_index);
+    int index;
+    int remained_infos = pvs->sec_path_mab_settings->current_packet_index - pvs->sec_path_mab_settings->current_retrieve_index;
+    int retrieved_infos;
+    if (remained_infos > max_retrieved_info_count) {
+        retrieved_infos = max_retrieved_info_count;
+    } else {
+        retrieved_infos = remained_infos;
+    }
+//    printk(KERN_EMERG "retrieved infos: %d\n", retrieved_infos);
+    for(index = 0; index < retrieved_infos; index++) {
+        int current_index = pvs->sec_path_mab_settings->current_retrieve_index + index;
+        char temp_string[10];
+        struct PerPacketInfo *per_packet_info = xa_erase(&(per_packet_info_array),
+                                                         current_index);
+        if(per_packet_info){
+            if (index == (retrieved_infos - 1)) {
+                snprintf(temp_string, sizeof(temp_string), "%d,%d", per_packet_info->selected_path_id,
+                         per_packet_info->best_path_id);
+                strcat(response_buffer, temp_string);
+            } else {
+                snprintf(temp_string, sizeof(temp_string), "%d,%d,", per_packet_info->selected_path_id,
+                         per_packet_info->best_path_id);
+                strcat(response_buffer, temp_string);
+            }
+            kfree(per_packet_info);
+        } else {
+            return -EINVAL;
+        }
+    }
+    pvs->sec_path_mab_settings->current_retrieve_index += retrieved_infos;
     return send_reply(response_buffer, info);
 }

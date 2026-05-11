@@ -3,6 +3,7 @@
 #include "structure/crypto/crypto_structure.h"
 #include "structure/rtt_estimator/rtt_estimator.h"
 #include "structure/routing/sec_path_mab_route.h"
+#include "structure/path_validation_structure.h"
 #include "tools/tools.h"
 
 /**
@@ -15,6 +16,7 @@ void test_apis(void){
     test_generate_sample_sequence();
     test_rtt_estimator();
     test_uniform_sample_index();
+    test_xarray();
 }
 
 /**

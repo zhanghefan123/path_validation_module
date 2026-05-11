@@ -93,6 +93,9 @@ static void __exit module_exit_function(void){
     // 进行卸载
     unregister_pernet_subsys(&net_namespace_operations);
 
+    // 进行 xarray 的释放
+    free_xarray();
+
     // 进行 netlink server 的卸载
     netlink_server_exit();
 

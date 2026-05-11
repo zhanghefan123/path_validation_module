@@ -20,7 +20,8 @@ const struct genl_ops exmpl_gnl_ops_echo[] = {
                 .cmd = CMD_INIT_ROUTING_TABLE,
                 .policy = attr_type_mapping,
                 .doit = netlink_init_routing_table,
-        }, {
+        },
+        {
                 .cmd = CMD_INIT_FORWARDING_TABLE,
                 .policy = attr_type_mapping,
                 .doit = netlink_init_interface_table,
@@ -54,7 +55,8 @@ const struct genl_ops exmpl_gnl_ops_echo[] = {
                 .cmd = CMD_INSERT_ROUTING_TABLE_ENTRY,
                 .policy = attr_type_mapping,
                 .doit = netlink_insert_routing_table_entry_handler,
-        },{
+        },
+        {
                 .cmd = CMD_INSERT_DEST_ROUTING_TABLE_ENTRY,
                 .policy = attr_type_mapping,
                 .doit = netlink_insert_dest_routing_table_entry_handler,
@@ -94,7 +96,7 @@ const struct genl_ops exmpl_gnl_ops_echo[] = {
                 .policy = attr_type_mapping,
                 .doit = netlink_insert_relationship_between_next_node_id_and_paths,
         },
-         {
+        {
                 .cmd = CMD_SET_SEC_PATH_MAB_ROUTE,
                 .policy = attr_type_mapping,
                 .doit = netlink_set_sec_path_mab_route,
@@ -118,22 +120,31 @@ const struct genl_ops exmpl_gnl_ops_echo[] = {
                 .cmd = CMD_SET_MALICIOUS_PARAMS,
                 .policy = attr_type_mapping,
                 .doit = netlink_set_router_malicious_parameters,
-        }, {
+        },
+        {
                 .cmd = CMD_RETRIEVE_KERNEL_INFORMATION,
                 .policy = attr_type_mapping,
                 .doit = netlink_retrieve_kernel_information,
-        }, {
+        },
+        {
                 .cmd = CMD_SET_SCHDULED_MALICIOUS_PARAMS,
                 .policy = attr_type_mapping,
                 .doit = netlink_set_scheduled_malicious_params,
-        },{
-            .cmd = CMD_SET_MIN_ACK_FOR_RTT_ESTIMATION,
-            .policy = attr_type_mapping,
-            .doit = netlink_set_min_ack_for_rtt_estimation,
-        }, {
-            .cmd = CMD_SET_BEST_PATH_ID_FOR_SOURCE,
-            .policy = attr_type_mapping,
-            .doit = netlink_set_best_path_id_for_source
+        },
+        {
+                .cmd = CMD_SET_MIN_ACK_FOR_RTT_ESTIMATION,
+                .policy = attr_type_mapping,
+                .doit = netlink_set_min_ack_for_rtt_estimation,
+        },
+        {
+                .cmd = CMD_SET_BEST_PATH_ID_FOR_SOURCE,
+                .policy = attr_type_mapping,
+                .doit = netlink_set_best_path_id_for_source
+        },
+        {
+                .cmd = CMD_RETRIEVE_PER_PACKET_INFO,
+                .policy = attr_type_mapping,
+                .doit = netlink_retrieve_per_packet_info,
         }
 };
 

@@ -347,7 +347,7 @@ int self_defined_udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len) {
             skb = self_defined_sec_path_make_skb(sk, fl4, getfrag, msg, ulen,
                                                  sizeof(struct udphdr), &ipc,
                                                  &cork, msg->msg_flags,
-                                                 pvs->sec_path_mab_settings->selected_route);
+                                                 pvs);
         } else {
             if (NULL == sk->path_validation_sock_structure) {
                 sent_first_packet = false;

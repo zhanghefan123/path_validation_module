@@ -15,6 +15,7 @@ struct SampleSequence {
 
 // 每次由用户空间下发一条路由
 struct SecPathMabRoute{
+    int path_id; // 路径的 id
     int source_id; // 源节点 id
     int destination_id; // 目的节点 id
     int number_of_link_identifiers; // 逐跳路径长度

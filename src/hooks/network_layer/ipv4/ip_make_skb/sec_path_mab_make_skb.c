@@ -328,7 +328,17 @@ struct sk_buff *self_defined_sec_path_make_skb(struct sock *sk,
                                                void *from, int length, int transhdrlen,
                                                struct ipcm_cookie *ipc,
                                                struct inet_cork *cork, unsigned int flags,
-                                               struct SecPathMabRoute *sec_path_mab_route) {
+                                               struct PathValidationStructure *pvs) {
+
+    // 存储每个包的信息
+    struct PerPacketInfo* per_packet_info = (struct PerPacketInfo*)(kmalloc(sizeof(struct PerPacketInfo), GFP_KERNEL));
+    spin_lock_bh(&pvs->sec_path_mab_settings->lock);
+    per_packet_info->best_path_id = pvs->sec_path_mab_settings->best_path_id;
+    spin_unlock_bh(&pvs->sec_path_mab_settings->lock);
+    per_packet_info->selected_path_id = pvs->sec_path_mab_settings->selected_route->path_id;
+    xa_store(&per_packet_info_array, pvs->sec_path_mab_settings->current_packet_index++, per_packet_info, GFP_KERNEL);
+
+
     struct sk_buff_head queue;
     int err;
 
@@ -346,20 +356,21 @@ struct sk_buff *self_defined_sec_path_make_skb(struct sock *sk,
     }
 
     // 进行包头的大小的获取, 不同类型的包不一样
-    int sec_path_mab_header_size = get_sec_path_mab_header_size(sec_path_mab_route->number_of_link_identifiers,
-                                                                sec_path_mab_route->number_of_sample_nodes);
+    int sec_path_mab_header_size = get_sec_path_mab_header_size(pvs->sec_path_mab_settings->selected_route->number_of_link_identifiers,
+                                                                pvs->sec_path_mab_settings->selected_route->number_of_sample_nodes);
 
     err = self_defined__xx_append_data(sk, fl4, &queue, cork,
                                        &current->task_frag, getfrag,
                                        from, length, transhdrlen, flags,
-                                       sec_path_mab_route->ite, sec_path_mab_header_size);
+                                       pvs->sec_path_mab_settings->selected_route->ite, sec_path_mab_header_size);
 
     if (err) {
         __ip_flush_pending_frames(sk, &queue, cork);
         return ERR_PTR(err);
     }
 
-    struct sk_buff *result = self_defined__sec_path_make_skb(sk, fl4, &queue, cork, sec_path_mab_route, length);
+    struct sk_buff *result = self_defined__sec_path_make_skb(sk, fl4, &queue, cork,
+            pvs->sec_path_mab_settings->selected_route, length);
     return result;
 }
 

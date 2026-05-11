@@ -8,6 +8,8 @@
 // 实际的变量定义
 DEFINE_PER_CPU(struct pv_struct, validation_api);
 
+
+
 struct pv_struct create_pv_struct(bool required_hash, bool required_hmac, bool required_bloom_filter,
                                   struct BloomFilter *template_bloom_filter) {
     struct pv_struct result = {};
@@ -153,3 +155,4 @@ void initialize_multipath_table(struct PathValidationStructure *pvs, int multipa
     pvs->abpt = init_abpt(number_of_destinations, number_of_buckets, multipath_routing_type,
                           number_of_relationships, number_of_paths);
 }
+

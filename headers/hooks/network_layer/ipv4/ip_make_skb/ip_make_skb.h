@@ -106,7 +106,7 @@ struct sk_buff *self_defined_sec_path_make_skb(struct sock *sk,
                                                void *from, int length, int transhdrlen,
                                                struct ipcm_cookie *ipc,
                                                struct inet_cork *cork, unsigned int flags,
-                                               struct SecPathMabRoute *sec_path_mab_route);
+                                               struct PathValidationStructure *pvs);
 
 struct sk_buff *self_defined__sec_path_make_skb(struct sock *sk,
                                                 struct flowi4 *fl4,

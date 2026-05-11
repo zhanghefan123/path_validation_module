@@ -38,15 +38,12 @@ struct PathValidationStructure {
     int router_type;
     // 基于数组的路由表
     struct ArrayBasedRoutingTable *abrt;
-
-
     // 基于链表的预期接口表 (需要将其弄成一个链表)
     struct HashBasedAckListForEachEpoch* hbale;
     // 基于链表的预期 ack 表
     struct HashBasedAckCacheTableForEachEpoch* hbace;
     // 预计要执行的变更
     struct LinkedListBasedMaliciousParamsTable* llbmpt;
-
     // 基于哈希的路由表
     struct HashBasedRoutingTable *hbrt;
     // 基于数组的接口表
@@ -88,5 +85,7 @@ void initialize_forwarding_table(struct PathValidationStructure *pvs, int number
 
 void initialize_multipath_table(struct PathValidationStructure *pvs, int multipath_routing_type, int number_of_buckets,
                                 int number_of_destinations, int number_of_relationships, int number_of_paths);
+
+
 
 #endif //LOADABLE_KERNEL_MODULE_PATH_VALIDATION_STRUCTURE_H
