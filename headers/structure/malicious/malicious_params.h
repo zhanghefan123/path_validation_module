@@ -9,6 +9,7 @@ struct MaliciousParams {
     int corrupt_ratio_end;
     int corrupt_special_ratio_start;
     int corrupt_special_ratio_end;
+//    struct rcu_head rcu;
 };
 
 struct MaliciousParams* init_malicious_params(void);

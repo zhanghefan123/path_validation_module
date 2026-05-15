@@ -12,6 +12,7 @@
 #include "types/sec_path_mab_types.h"
 #include <linux/inet.h>
 #include <linux/list.h>
+#include <linux/rcupdate.h>
 
 /**
  * netlink_handler.c - 路径验证模块的 Generic Netlink 命令处理
@@ -1148,7 +1149,7 @@ int netlink_set_sec_path_mab_route_for_dynamic_batch(struct sk_buff* request, st
     }
 
     // 刚刚进行换路, 肯定需要进行采样包的发送
-    set_send_sample_packets(pvs->sec_path_mab_settings, true);
+    set_send_sample_packets_flag(pvs->sec_path_mab_settings, true);
 
     if (NULL != pvs->hbale) {
 //        printk(KERN_EMERG "current retrieve epoch: %d\n", pvs->sec_path_mab_settings->current_retrieve_epoch);
@@ -1743,7 +1744,7 @@ int netlink_reset_sec_path_mab_route_for_dynamic_batch(struct sk_buff *request, 
     mini_batch_size = (int)(simple_strtol(receive_buffer, NULL, 10));
 
 
-    set_send_sample_packets(pvs->sec_path_mab_settings, true);
+    set_send_sample_packets_flag(pvs->sec_path_mab_settings, true);
 
     int number_of_sample_nodes = pvs->sec_path_mab_settings->selected_route->number_of_sample_nodes;
     if (NULL != pvs->hbale) {
@@ -1856,7 +1857,6 @@ int netlink_set_router_malicious_parameters(struct sk_buff *request, struct genl
     int corrupt_ratio_end;
     int corrupt_special_ratio_start;
     int corrupt_special_ratio_end;
-
     {
         int err = recv_message_copy(info, receive_buffer, sizeof(receive_buffer));
         if (err)
@@ -1889,6 +1889,7 @@ int netlink_set_router_malicious_parameters(struct sk_buff *request, struct genl
         count += 1;
     }
 
+
     // 使用 pvs 锁进行 malicious_params 的获取
     spin_lock_bh(&(pvs->sec_path_mab_settings->lock));
     pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_start = corrupt_ratio_start;
@@ -1896,10 +1897,10 @@ int netlink_set_router_malicious_parameters(struct sk_buff *request, struct genl
     pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_start = corrupt_special_ratio_start;
     pvs->sec_path_mab_settings->malicious_params->corrupt_special_ratio_end = corrupt_special_ratio_end;
     spin_unlock_bh(&(pvs->sec_path_mab_settings->lock));
-
     snprintf(response_buffer, sizeof(response_buffer), "CMD_SET_MALICIOUS_PARAMS: %d-%d | %d-%d\n",
              corrupt_ratio_start, corrupt_ratio_end,
              corrupt_special_ratio_start, corrupt_special_ratio_end);
+    //    printk(KERN_EMERG "node_id: %d, response_buffer: %s, Netlink PVS pointer: %px, NS: %px\n", pvs->node_id, response_buffer, pvs, current_ns);
     return send_reply(response_buffer, info);
 }
 
@@ -1951,13 +1952,21 @@ int netlink_retrieve_kernel_information_for_fixed_batch(struct sk_buff *request,
         struct StatisticsForSingleEpoch *sfse = find_sfse_in_hbale(pvs->hbale, pvs->sec_path_mab_settings->current_retrieve_epoch);
         if (NULL == sfse) {
             snprintf(response_buffer, sizeof(response_buffer), "Err: cannot find sfse with epoch id: %d\n", pvs->sec_path_mab_settings->current_retrieve_epoch);
-            return send_reply(response_buffer, info);
+            if(number_of_retrieved_epochs == 0){
+                return send_reply(response_buffer, info);
+            } else {
+                break;
+            }
         }
 
         struct HashBasedAckCacheTableForSingleEpoch *hbase = find_hbase_in_hbace(pvs->hbace, pvs->sec_path_mab_settings->current_retrieve_epoch);
         if (NULL == hbase) {
             snprintf(response_buffer, sizeof(response_buffer), "Err: cannot find hbase with epoch id: %d\n", pvs->sec_path_mab_settings->current_retrieve_epoch);
-            return send_reply(response_buffer, info);
+            if(number_of_retrieved_epochs == 0){
+                return send_reply(response_buffer, info);
+            } else {
+                break;
+            }
         }
 
         // 1. 第1个条件是所有的 packets 全部丢出去了
@@ -1980,7 +1989,6 @@ int netlink_retrieve_kernel_information_for_fixed_batch(struct sk_buff *request,
 
         // 3. 如果2个条件都被满足了, 那么就可以安全地返回 ACK 列表了
         write_response_string_for_fixed_batch(sfse, retrieved_acks_string, pvs->sec_path_mab_settings->current_retrieve_epoch);
-//        printk(KERN_EMERG "retrieved_acks_string: %s\n", retrieved_acks_string);
         pvs->sec_path_mab_settings->current_retrieve_epoch++;
 
 
@@ -2056,20 +2064,18 @@ int netlink_retrieve_kernel_information_for_dynamic_batch(struct sk_buff *reques
             return send_reply(response_buffer, info);
         } else {
             // 如果满足了第一个条件那么当前的 sec_path_mab_settings 之中的 bool 设置为 true, 代表的是不用再进行检测包的发送了
-            set_send_sample_packets(pvs->sec_path_mab_settings, false);
+            set_send_sample_packets_flag(pvs->sec_path_mab_settings, false);
             sfse->already_collected_acks = true;
         }
         // 150 + RTT (最远) + RTT (最远)
         sfse->collect_enough_ack_time_stamp = ktime_get_us();
     }
 
-
     // 2. 第2个条件 （是否当前时间戳 > 超时时间戳）
     u64 current_timestamp = ktime_get_us();
     sfse->timeout_timestamp = get_timeout_timestamp(sfse);
     bool second_condition = current_timestamp > sfse->timeout_timestamp;
     if (!second_condition) {
-//        printk(KERN_EMERG "Err: second condition is not fulfilled, remain: %llu us in epoch %d, sent %d packets",sfse->timeout_timestamp - current_timestamp, epoch_id, sfse->number_of_sampling_packets);
         snprintf(response_buffer, sizeof(response_buffer),
                  "Err: second condition is not fulfilled, remain: %llu us in epoch %d, sent %d packets",
                  sfse->timeout_timestamp - current_timestamp, epoch_id, sfse->number_of_sampling_packets);
@@ -2079,8 +2085,6 @@ int netlink_retrieve_kernel_information_for_dynamic_batch(struct sk_buff *reques
     // 3. 如果2个条件都被满足了, 那么就可以安全地返回 ACK 列表了
     sfse->reach_timeout_time_stamp = ktime_get_us();  // 更新 sending_time_elapsed
     write_response_string_for_dynamic_batch(sfse, response_buffer, pvs->sec_path_mab_settings->current_retrieve_epoch);
-
-//    printk(KERN_EMERG "retrieve epoch: %d\n", pvs->sec_path_mab_settings->current_retrieve_epoch);
     pvs->sec_path_mab_settings->current_retrieve_epoch++;
 
     // 4. 如果都返回了, 就可以进行 sfse 的释放了
@@ -2200,7 +2204,7 @@ int netlink_set_best_path_id_for_source(struct sk_buff* request, struct genl_inf
 }
 
 int netlink_retrieve_per_packet_info(struct sk_buff* request, struct genl_info* info){
-    int max_retrieved_info_count = 400;
+    int max_retrieved_info_count = 200;
     struct net *current_ns = sock_net(request->sk);
     struct PathValidationStructure *pvs = get_pvs_from_ns(current_ns);
     char response_buffer[4096];
@@ -2217,17 +2221,19 @@ int netlink_retrieve_per_packet_info(struct sk_buff* request, struct genl_info* 
 //    printk(KERN_EMERG "retrieved infos: %d\n", retrieved_infos);
     for(index = 0; index < retrieved_infos; index++) {
         int current_index = pvs->sec_path_mab_settings->current_retrieve_index + index;
-        char temp_string[10];
+        char temp_string[20];
         struct PerPacketInfo *per_packet_info = xa_erase(&(per_packet_info_array),
                                                          current_index);
         if(per_packet_info){
             if (index == (retrieved_infos - 1)) {
-                snprintf(temp_string, sizeof(temp_string), "%d,%d", per_packet_info->selected_path_id,
-                         per_packet_info->best_path_id);
+                snprintf(temp_string, sizeof(temp_string), "%d,%d,%llu", per_packet_info->selected_path_id,
+                         per_packet_info->best_path_id,
+                         per_packet_info->timestamp);
                 strcat(response_buffer, temp_string);
             } else {
-                snprintf(temp_string, sizeof(temp_string), "%d,%d,", per_packet_info->selected_path_id,
-                         per_packet_info->best_path_id);
+                snprintf(temp_string, sizeof(temp_string), "%d,%d,%llu,", per_packet_info->selected_path_id,
+                         per_packet_info->best_path_id,
+                         per_packet_info->timestamp);
                 strcat(response_buffer, temp_string);
             }
             kfree(per_packet_info);

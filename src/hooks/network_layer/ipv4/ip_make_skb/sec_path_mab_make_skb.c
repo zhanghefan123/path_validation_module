@@ -332,10 +332,9 @@ struct sk_buff *self_defined_sec_path_make_skb(struct sock *sk,
 
     // 存储每个包的信息
     struct PerPacketInfo* per_packet_info = (struct PerPacketInfo*)(kmalloc(sizeof(struct PerPacketInfo), GFP_KERNEL));
-    spin_lock_bh(&pvs->sec_path_mab_settings->lock);
-    per_packet_info->best_path_id = pvs->sec_path_mab_settings->best_path_id;
-    spin_unlock_bh(&pvs->sec_path_mab_settings->lock);
+    per_packet_info->best_path_id = get_best_path_id(pvs->sec_path_mab_settings);
     per_packet_info->selected_path_id = pvs->sec_path_mab_settings->selected_route->path_id;
+    per_packet_info->timestamp = ktime_get_us();
     xa_store(&per_packet_info_array, pvs->sec_path_mab_settings->current_packet_index++, per_packet_info, GFP_KERNEL);
 
 
@@ -451,7 +450,7 @@ struct sk_buff *self_defined__sec_path_make_skb(struct sock *sk,
         struct SampleSequence* sample_sequence= pvs->sec_path_mab_settings->selected_route->sample_sequence;
         sampling_router_index = sample_sequence->actual_sequence[sample_sequence->current_index++];
     } else {
-        bool send_sample_packets = get_send_sample_packets(pvs->sec_path_mab_settings);
+        bool send_sample_packets = get_send_sample_packets_flag(pvs->sec_path_mab_settings);
         if(send_sample_packets) {
             sampling_router_index = uniform_sample_index(sec_path_mab_route->number_of_sample_nodes);
         } else {

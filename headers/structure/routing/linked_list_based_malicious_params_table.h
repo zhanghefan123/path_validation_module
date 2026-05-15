@@ -11,7 +11,7 @@ struct LinkedListBasedMaliciousParamsTable {
 };
 
 struct ScheduledCorruptRatio {
-    int employ_epoch_or_timestamp;
+    u64 employ_epoch_or_timestamp;
     int corrupt_ratio_start;
     int corrupt_ratio_end;
     struct list_head list;

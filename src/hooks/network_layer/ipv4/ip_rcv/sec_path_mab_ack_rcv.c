@@ -283,6 +283,8 @@ void sec_path_mab_ack_normal_router_process_ack_packets(struct sk_buff* skb, str
         printk(KERN_EMERG "corrupt ack packets\n");
     }
 
+
+
     bool packet_forwarded = false;
     int index;
     for(index = 0; index < pvs->abit->number_of_interfaces; index++){

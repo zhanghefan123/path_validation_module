@@ -341,28 +341,37 @@ void sec_path_mab_normal_router_process_data_packets(struct sk_buff *skb, struct
     //            }
     //        }
     //    } else {
-    //        u64 time_elapsed_ms = (ktime_get_us() - pvs->sec_path_mab_settings->sync_timestamp) / 1000;
-    //        struct ScheduledCorruptRatio* entry, *tmp;
-    //        list_for_each_entry_safe(entry, tmp, &(pvs->llbmpt->corrupt_ratio_entry_list), list){
-    //            if(NULL != entry){
-    //                if(entry->employ_epoch_or_timestamp <= time_elapsed_ms){
-    //                    pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_start = entry->corrupt_ratio_start;
-    //                    pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_end = entry->corrupt_ratio_end;
-    //                    printk(KERN_EMERG "normal router %d updates corrupt ratio to [%d, %d] for timestamp %d\n", pvs->node_id,
-    //                           entry->corrupt_ratio_start, entry->corrupt_ratio_end, entry->employ_epoch_or_timestamp);
-    //                    list_del(&entry->list);
-    //                    kfree(entry);
-    //                }
+    //    struct ScheduledCorruptRatio* entry, *tmp;
+    //    list_for_each_entry_safe(entry, tmp, &(pvs->llbmpt->corrupt_ratio_entry_list), list){
+    //        if(NULL != entry){
+    //            if(pvs->sec_path_mab_settings->sync_timestamp + entry->employ_epoch_or_timestamp * 1000 <= ktime_get_us()){
+    //                pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_start = entry->corrupt_ratio_start;
+    //                pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_end = entry->corrupt_ratio_end;
+    //                printk(KERN_EMERG "sync_timestamp: {%llu}, employ_epoch_or_timestamp: {%llu}, current time: {%llu} \n", pvs->sec_path_mab_settings->sync_timestamp,
+    //                       entry->employ_epoch_or_timestamp * 1000, ktime_get_us());
+    //                list_del(&entry->list);
+    //                kfree(entry);
     //            }
     //        }
     //    }
+            //  u64 time_elapsed_ms = (ktime_get_us() - pvs->sec_path_mab_settings->sync_timestamp) / 1000;
+    //    }
+    //    bool corrupt = corrupt_decision(pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_start,
+    //                                    pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_end);
+    //    if (corrupt) {
+    //        // 获取 hvfs 的最后一个进行修改
+    //        struct SecPathMabValidationPart *sec_path_mab_validation_part = get_sec_path_mab_validation_part(
+    //                sec_path_mab_header, sec_path_mab_header->length_of_path);
+    //        *((u16 *) &(sec_path_mab_validation_part->hvfs[sec_path_mab_header->length_of_path])) += 20;
+    //        sec_path_mab_send_check(sec_path_mab_header);
+    //    }
+
 
     bool corrupt = false;
     spin_lock_bh(&(pvs->sec_path_mab_settings->lock));
     corrupt = corrupt_decision(pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_start,
                                     pvs->sec_path_mab_settings->malicious_params->corrupt_ratio_end);
     spin_unlock_bh(&(pvs->sec_path_mab_settings->lock));
-
     if (corrupt) {
         // 获取 hvfs 的最后一个进行修改
         struct SecPathMabValidationPart *sec_path_mab_validation_part = get_sec_path_mab_validation_part(
@@ -370,7 +379,6 @@ void sec_path_mab_normal_router_process_data_packets(struct sk_buff *skb, struct
         *((u16 *) &(sec_path_mab_validation_part->hvfs[sec_path_mab_header->length_of_path])) += 20;
         sec_path_mab_send_check(sec_path_mab_header);
     }
-
 
     // 进行转发还是篡改
     bool packet_forwarded = false;
@@ -544,7 +552,7 @@ int sec_path_mab_pv_router_process_data_packets(struct sk_buff *skb, struct Path
             // 2. perform xor operation
             memory_xor(verification_result.sample_identifier, updated_pvf, PVF_LENGTH);
 
-            // 3. send akc back to source
+            // 3. send ack back to source
 
             //            printk(KERN_EMERG "------------------------ received identifier: %d --------------------\n", sec_path_mab_header->identifier);
             //            print_memory_in_hex(verification_result.sample_identifier, ACK_AUTHENTICATION_LENGTH);
